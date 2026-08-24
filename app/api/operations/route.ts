@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   const authorization = await authorizeAdmin(request);
   if (authorization === 'not_configured') {
     return Response.json(
-      { error: 'Admin access has not been configured.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      { error: 'Admin access was denied.' },
+      { status: 401, headers: { 'Cache-Control': 'no-store' } },
     );
   }
   if (authorization !== 'authorized') {

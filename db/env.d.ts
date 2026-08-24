@@ -1,6 +1,7 @@
 declare namespace NodeJS {
   interface ProcessEnv {
     DATABASE_URL?: string;
+    DATABASE_URL_UNPOOLED?: string;
     POSTGRES_PRISMA_URL?: string;
     POSTGRES_URL_NON_POOLING?: string;
     POSTGRES_URL?: string;

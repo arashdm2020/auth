@@ -74,6 +74,7 @@ let databaseReady: Promise<void> | undefined;
 function getConnectionString(): string {
   const connectionString =
     process.env.DATABASE_URL?.trim() ||
+    process.env.DATABASE_URL_UNPOOLED?.trim() ||
     process.env.POSTGRES_PRISMA_URL?.trim() ||
     process.env.POSTGRES_URL_NON_POOLING?.trim() ||
     process.env.POSTGRES_URL?.trim();

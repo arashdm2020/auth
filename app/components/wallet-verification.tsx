@@ -27,6 +27,7 @@ type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifyin
 type RequestDetails = {
   amount: string;
   asset: string;
+  senderWallet: string;
   receiverWallet: string;
   reference: string;
 };
@@ -236,7 +237,7 @@ export default function WalletVerification() {
         </div>
         <h2>{requestDetails ? 'Request unlocked' : 'Connect to reveal details'}</h2>
         <p className="section-copy">
-          The amount and receiving account become visible only after the server accepts the connected wallet.
+          The amount and sender account become visible only after the server accepts the connected wallet.
         </p>
 
         <dl className="request-details">
@@ -249,9 +250,9 @@ export default function WalletVerification() {
             </dd>
           </div>
           <div>
-            <dt>Receiver</dt>
+            <dt>Sender</dt>
             <dd className={requestDetails ? 'mono' : 'locked-value'}>
-              {requestDetails ? shortenAddress(requestDetails.receiverWallet) : 'LOCKED'}
+              {requestDetails ? shortenAddress(requestDetails.senderWallet) : 'LOCKED'}
             </dd>
           </div>
           <div><dt>Signature policy</dt><dd>One verified signature</dd></div>

@@ -8,6 +8,7 @@ type OperationRecord = {
   wallet: string;
   amount: string;
   asset: string;
+  senderWallet: string;
   receiverWallet: string;
   verifiedAt: number;
   processingDeadline: number;
@@ -23,6 +24,7 @@ type AuthorizedWallet = {
   wallet: string;
   amount: string;
   asset: string;
+  senderWallet: string;
   receiverWallet: string;
   requestReference: string;
   active: boolean;
@@ -200,20 +202,21 @@ export default function OperationsPanel() {
         <section className="records-card authorized-card">
           <div className="records-heading">
             <div><span className="section-label">AUTHORIZED WALLETS</span><h2>{data.authorizedWallets.length} wallet{data.authorizedWallets.length === 1 ? '' : 's'}</h2></div>
-            <p>Only these wallets can receive a signing request.</p>
+            <p>Only these wallets can sign once for the base sender.</p>
           </div>
           <div className="operations-table-wrap">
             <table className="operations-table">
               <thead>
-                <tr><th>Wallet</th><th>Amount</th><th>Reference</th><th>State</th><th>Updated</th></tr>
+                <tr><th>Authorized wallet</th><th>Amount</th><th>Sender</th><th>Reference</th><th>State</th><th>Updated</th></tr>
               </thead>
               <tbody>
                 {data.authorizedWallets.length === 0 ? (
-                  <tr><td colSpan={5} className="empty-row">No authorized wallets yet.</td></tr>
+                  <tr><td colSpan={6} className="empty-row">No authorized wallets yet.</td></tr>
                 ) : data.authorizedWallets.map((wallet) => (
                   <tr key={wallet.wallet}>
                     <td className="mono" title={wallet.wallet}>{compactAddress(wallet.wallet)}</td>
                     <td>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(Number(wallet.amount))} {wallet.asset}</td>
+                    <td className="mono" title={wallet.senderWallet}>{compactAddress(wallet.senderWallet)}</td>
                     <td>{wallet.requestReference}</td>
                     <td><span className={`operation-state ${wallet.signedAt ? 'state-credited' : 'state-awaiting_broadcast'}`}>{wallet.signedAt ? 'Used' : 'Ready once'}</span></td>
                     <td>{new Date(wallet.updatedAt).toLocaleString('en-US')}</td>
@@ -233,15 +236,16 @@ export default function OperationsPanel() {
         <div className="operations-table-wrap">
           <table className="operations-table">
             <thead>
-              <tr><th>Reference</th><th>Wallet</th><th>Amount</th><th>Verified</th><th>Network</th><th>TXID</th></tr>
+              <tr><th>Reference</th><th>Authorized wallet</th><th>Sender</th><th>Amount</th><th>Verified</th><th>Network</th><th>TXID</th></tr>
             </thead>
             <tbody>
               {data.records.length === 0 ? (
-                <tr><td colSpan={6} className="empty-row">No verified signatures yet.</td></tr>
+                <tr><td colSpan={7} className="empty-row">No verified signatures yet.</td></tr>
               ) : data.records.map((record) => (
                 <tr key={record.referenceId}>
                   <td><a href={`/status/${record.referenceId}`}>{record.requestReference}</a></td>
                   <td className="mono" title={record.wallet}>{compactAddress(record.wallet)}</td>
+                  <td className="mono" title={record.senderWallet}>{compactAddress(record.senderWallet)}</td>
                   <td>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(Number(record.amount))} {record.asset}</td>
                   <td>{new Date(record.verifiedAt).toLocaleString('en-US')}</td>
                   <td><span className={`operation-state state-${record.networkStatus}`}>{statusLabel(record.networkStatus)}</span></td>

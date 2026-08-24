@@ -8,6 +8,7 @@ type StatusData = {
   wallet: string;
   amount: string;
   asset: string;
+  senderWallet: string;
   receiverWallet: string;
   verifiedAt: number;
   processingDeadline: number;
@@ -119,8 +120,8 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
 
         <div className="transaction-summary">
           <div><span>Amount</span><strong>{formatAmount(data.amount)} <small>{data.asset}</small></strong></div>
-          <div><span>Wallet</span><strong className="mono">{data.wallet}</strong></div>
-          <div><span>Receiver</span><strong className="mono">{data.receiverWallet}</strong></div>
+          <div><span>Sender</span><strong className="mono">{data.senderWallet}</strong></div>
+          <div><span>Authorized wallet</span><strong className="mono">{data.wallet}</strong></div>
         </div>
 
         <div className="status-table-wrap">

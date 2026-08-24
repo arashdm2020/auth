@@ -15,7 +15,8 @@ function requestDetails(request: NonNullable<Awaited<ReturnType<typeof getAuthor
   return {
     amount: request.amount,
     asset: request.asset,
-    receiverWallet: request.receiver_wallet,
+    senderWallet: request.receiver_wallet,
+    receiverWallet: request.wallet_address,
     reference: request.request_reference,
   };
 }

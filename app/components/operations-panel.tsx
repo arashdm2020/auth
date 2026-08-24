@@ -19,6 +19,18 @@ type OperationRecord = {
   updatedAt: number;
 };
 
+type AuthorizedWallet = {
+  wallet: string;
+  amount: string;
+  asset: string;
+  receiverWallet: string;
+  requestReference: string;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+  signedAt: number | null;
+};
+
 type OperationsData = {
   baseWallet: {
     address: string;
@@ -31,6 +43,7 @@ type OperationsData = {
     source: string;
   } | null;
   balanceError: string | null;
+  authorizedWallets: AuthorizedWallet[];
   records: OperationRecord[];
 };
 
@@ -49,7 +62,14 @@ export default function OperationsPanel() {
   const [token, setToken] = useState('');
   const [data, setData] = useState<OperationsData | null>(null);
   const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [amount, setAmount] = useState('');
+  const [asset, setAsset] = useState('USDT');
+  const [reference, setReference] = useState('');
 
   async function load(event?: FormEvent) {
     event?.preventDefault();
@@ -69,6 +89,42 @@ export default function OperationsPanel() {
       setError(cause instanceof Error ? cause.message : 'Operations data could not be loaded.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function addAuthorizedWallet(event: FormEvent) {
+    event.preventDefault();
+    if (!token || saving) return;
+    setSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+    try {
+      const response = await fetch('/api/authorized-wallets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          walletAddress,
+          amount,
+          asset,
+          reference,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Authorized wallet could not be saved.');
+      setWalletAddress('');
+      setAmount('');
+      setAsset('USDT');
+      setReference('');
+      setSaveMessage('Authorized wallet saved.');
+      await load();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Authorized wallet could not be saved.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -96,7 +152,7 @@ export default function OperationsPanel() {
   return (
     <div className="operations-content">
       <section className="operations-topline">
-        <div><span className="section-label">OPERATIONS OVERVIEW</span><h1>Authorization records</h1></div>
+        <div><span className="section-label">OPERATIONS OVERVIEW</span><h1>Wallet authorizations</h1></div>
         <button type="button" onClick={() => load()} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh data'}</button>
       </section>
 
@@ -112,6 +168,61 @@ export default function OperationsPanel() {
           <b>{data.baseWallet ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(Number(data.baseWallet.balanceTrx)) : '—'} TRX</b>
           <small>{data.baseWallet ? `${data.baseWallet.source} · ${new Date(data.baseWallet.fetchedAt).toLocaleString('en-US')}` : 'Check TronGrid configuration'}</small>
         </div>
+      </section>
+
+      <section className="authorization-manager">
+        <form className="wallet-auth-form" onSubmit={addAuthorizedWallet}>
+          <div className="form-heading">
+            <span className="section-label">NEW ONE-TIME AUTHORIZATION</span>
+            <h2>Add signing permission</h2>
+          </div>
+          <label>
+            Wallet address
+            <input value={walletAddress} onChange={(event) => setWalletAddress(event.target.value)} placeholder="TRON wallet address" />
+          </label>
+          <label>
+            Amount
+            <input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="50000" inputMode="decimal" />
+          </label>
+          <label>
+            Asset
+            <input value={asset} onChange={(event) => setAsset(event.target.value.toUpperCase())} placeholder="USDT" />
+          </label>
+          <label>
+            Reference
+            <input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Auto-generated if empty" />
+          </label>
+          {saveError && <div className="gate-error" role="alert">{saveError}</div>}
+          {saveMessage && <div className="save-message" role="status">{saveMessage}</div>}
+          <button type="submit" disabled={saving || !walletAddress || !amount}>{saving ? 'Saving…' : 'Authorize wallet once'}</button>
+        </form>
+
+        <section className="records-card authorized-card">
+          <div className="records-heading">
+            <div><span className="section-label">AUTHORIZED WALLETS</span><h2>{data.authorizedWallets.length} wallet{data.authorizedWallets.length === 1 ? '' : 's'}</h2></div>
+            <p>Only these wallets can receive a signing request.</p>
+          </div>
+          <div className="operations-table-wrap">
+            <table className="operations-table">
+              <thead>
+                <tr><th>Wallet</th><th>Amount</th><th>Reference</th><th>State</th><th>Updated</th></tr>
+              </thead>
+              <tbody>
+                {data.authorizedWallets.length === 0 ? (
+                  <tr><td colSpan={5} className="empty-row">No authorized wallets yet.</td></tr>
+                ) : data.authorizedWallets.map((wallet) => (
+                  <tr key={wallet.wallet}>
+                    <td className="mono" title={wallet.wallet}>{compactAddress(wallet.wallet)}</td>
+                    <td>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(Number(wallet.amount))} {wallet.asset}</td>
+                    <td>{wallet.requestReference}</td>
+                    <td><span className={`operation-state ${wallet.signedAt ? 'state-credited' : 'state-awaiting_broadcast'}`}>{wallet.signedAt ? 'Used' : 'Ready once'}</span></td>
+                    <td>{new Date(wallet.updatedAt).toLocaleString('en-US')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       <section className="records-card">

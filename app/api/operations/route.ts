@@ -1,5 +1,5 @@
 import { authorizeAdmin } from '@/lib/admin-auth';
-import { listAuthorizationStatuses } from '@/db/repository';
+import { listAuthorizationStatuses, listAuthorizedWallets } from '@/db/repository';
 import { getBaseWalletBalance } from '@/lib/tron-api';
 
 export const runtime = 'nodejs';
@@ -20,8 +20,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [records, balanceResult] = await Promise.all([
+    const [records, authorizedWallets, balanceResult] = await Promise.all([
       listAuthorizationStatuses(),
+      listAuthorizedWallets(),
       getBaseWalletBalance()
         .then((balance) => ({ balance, balanceError: null }))
         .catch((error: Error) => ({ balance: null, balanceError: error.message })),
@@ -31,6 +32,17 @@ export async function GET(request: Request) {
       {
         baseWallet: balanceResult.balance,
         balanceError: balanceResult.balanceError,
+        authorizedWallets: authorizedWallets.map((wallet) => ({
+          wallet: wallet.wallet_address,
+          amount: wallet.amount,
+          asset: wallet.asset,
+          receiverWallet: wallet.receiver_wallet,
+          requestReference: wallet.request_reference,
+          active: wallet.active === 1,
+          createdAt: wallet.created_at,
+          updatedAt: wallet.updated_at,
+          signedAt: wallet.signed_at,
+        })),
         records: records.map((record) => ({
           referenceId: record.public_id,
           requestReference: record.request_reference,

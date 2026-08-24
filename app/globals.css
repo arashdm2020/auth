@@ -236,6 +236,45 @@ a { color: inherit; }
 .security-note p { margin: 0; font-size: 9px; line-height: 1.65; }
 .security-note strong { color: #8f98a8; }
 
+.access-lock-overlay {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background: rgba(5, 7, 11, .58);
+  backdrop-filter: blur(18px) saturate(.75);
+  -webkit-backdrop-filter: blur(18px) saturate(.75);
+}
+.access-lock-overlay::before {
+  position: fixed;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, .035);
+  background: linear-gradient(135deg, rgba(235, 16, 40, .1), transparent 42%, rgba(13, 18, 27, .34));
+  content: "";
+  pointer-events: none;
+}
+.access-lock-card {
+  position: relative;
+  width: min(520px, 100%);
+  padding: 38px;
+  border: 1px solid rgba(235, 16, 40, .38);
+  border-radius: 20px;
+  background: rgba(14, 17, 24, .86);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .04);
+  text-align: center;
+}
+.access-lock-icon { display: grid; width: 52px; height: 52px; margin: 0 auto 22px; place-items: center; border: 1px solid rgba(235, 16, 40, .48); border-radius: 50%; background: rgba(235, 16, 40, .13); color: #ff8a98; font-size: 20px; font-weight: 900; }
+.access-lock-card h1 { margin: 12px 0 10px; color: #f2f4f8; font-size: clamp(26px, 5vw, 38px); letter-spacing: -.045em; }
+.access-lock-card > p { max-width: 430px; margin: 0 auto; color: #aab1bf; font-size: 12px; line-height: 1.8; }
+.access-lock-countdown { margin-top: 28px; padding: 22px; border: 1px solid rgba(235, 16, 40, .2); border-radius: 14px; background: rgba(6, 8, 13, .58); }
+.access-lock-countdown span { display: block; color: #855963; font-size: 8px; font-weight: 900; letter-spacing: .18em; }
+.access-lock-countdown strong { display: block; margin: 12px 0 8px; color: #f0c4ca; font: clamp(30px, 8vw, 48px)/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; }
+.access-lock-countdown small { color: #6e7582; font-size: 8px; letter-spacing: .08em; }
+.access-lock-until { margin-top: 16px; color: #707888; font-size: 9px; }
+
 .success-grid { grid-template-columns: 1fr 1fr; }
 .result-meta { display: grid; gap: 10px; margin-top: 34px; }
 .result-meta > div { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--line); }

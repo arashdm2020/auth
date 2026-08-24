@@ -25,7 +25,7 @@ type TronWindow = Window & {
   };
 };
 type WalletKind = 'tronlink' | 'trust';
-type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'redirecting' | 'error';
+type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'redirecting' | 'blocked' | 'error';
 
 type RequestDetails = {
   amount: string;
@@ -47,6 +47,8 @@ type ChallengeResponse = Partial<Challenge> & {
   alreadyVerified?: boolean;
   verifiedAt?: number;
   statusUrl?: string;
+  blockedUntil?: number;
+  error?: string;
 };
 
 async function readResponse<T>(response: Response): Promise<T> {
@@ -138,6 +140,14 @@ function displayAmount(amount: string) {
     : amount;
 }
 
+function displayCountdown(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
 export default function WalletVerification() {
   const trustAdapter = useMemo(
     () => new TrustAdapter({ checkTimeout: 2500, openAppWithDeeplink: false, openUrlWhenWalletNotFound: false }),
@@ -149,6 +159,8 @@ export default function WalletVerification() {
   const [requestDetails, setRequestDetails] = useState<RequestDetails | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [message, setMessage] = useState('Loading secure authorization policy...');
+  const [blockedUntil, setBlockedUntil] = useState<number | null>(null);
+  const [lockClock, setLockClock] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -186,7 +198,30 @@ export default function WalletVerification() {
     };
   }, [trustAdapter]);
 
-  const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting'].includes(phase);
+  useEffect(() => {
+    if (!blockedUntil) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const updateClock = () => {
+      const now = Date.now();
+      setLockClock(now);
+      if (now >= blockedUntil) {
+        setBlockedUntil(null);
+        setPhase('idle');
+        setMessage('The temporary access restriction has expired. Connect the wallet again.');
+      }
+    };
+    updateClock();
+    const timer = window.setInterval(updateClock, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [blockedUntil]);
+
+  const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting', 'blocked'].includes(phase);
 
   async function requestChallenge(address: string) {
     const response = await fetch('/api/challenge', {
@@ -194,7 +229,20 @@ export default function WalletVerification() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress: address }),
     });
-    const data = await readResponse<ChallengeResponse>(response);
+    const data = await response.json() as ChallengeResponse;
+
+    if (!response.ok) {
+      if (response.status === 423 && typeof data.blockedUntil === 'number' && data.blockedUntil > Date.now()) {
+        setChallenge(null);
+        setRequestDetails(null);
+        setBlockedUntil(data.blockedUntil);
+        setLockClock(Date.now());
+        setPhase('blocked');
+        setMessage(data.error || 'Connection unavailable. Multisig access is temporarily suspended.');
+        return;
+      }
+      throw new Error(data.error || 'The request could not be completed.');
+    }
 
     if (data.alreadyVerified && data.statusUrl) {
       setPhase('redirecting');
@@ -366,8 +414,11 @@ export default function WalletVerification() {
     }
   }
 
+  const remainingLockTime = blockedUntil ? Math.max(0, blockedUntil - lockClock) : 0;
+
   return (
-    <div className="authorization-grid">
+    <>
+    <div className="authorization-grid" aria-hidden={blockedUntil ? true : undefined}>
       <section className="summary-panel">
         <div className="summary-heading">
           <span className="section-label">AUTHORIZATION REQUEST</span>
@@ -471,5 +522,24 @@ export default function WalletVerification() {
         </div>
       </section>
     </div>
+    {blockedUntil && (
+      <div className="access-lock-overlay" role="alertdialog" aria-modal="true" aria-labelledby="access-lock-title">
+        <div className="access-lock-card">
+          <div className="access-lock-icon" aria-hidden="true">!</div>
+          <span className="section-label">SECURITY RESTRICTION</span>
+          <h1 id="access-lock-title">Access temporarily suspended</h1>
+          <p>{message}</p>
+          <div className="access-lock-countdown">
+            <span>ACCESS RESTORES IN</span>
+            <strong>{displayCountdown(remainingLockTime)}</strong>
+            <small>Hours&nbsp;&nbsp;Minutes&nbsp;&nbsp;Seconds</small>
+          </div>
+          <div className="access-lock-until">
+            Scheduled restoration: {new Date(blockedUntil).toLocaleString('en-US')}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

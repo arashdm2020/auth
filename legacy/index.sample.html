@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tron Smart Contract - Authorization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            border-top: 5px solid #eb0d2c;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .header img {
+            width: 28px;
+            height: 28px;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .tx-box {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-family: monospace;
+            text-align: left;
+            font-size: 13px;
+        }
+        .btn {
+            background: #eb0d2c;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.3s;
+            font-weight: bold;
+            width: 100%;
+        }
+        .btn:hover {
+            background: #c10b24;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 15px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+            font-size: 13px;
+        }
+        .address {
+            font-weight: bold;
+            color: #eb0d2c;
+            word-break: break-all;
+        }
+        .tx-status {
+            font-size: 11px;
+            color: #666;
+            text-align: left;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <img src="https://icons.iconarchive.com/icons/cjdowner/cryptocurrency-flat/128/tron-icon.png" alt="Tron Logo">
+            <h2>Smart Contract Validation</h2>
+        </div>
+        
+        <div class="tx-box">
+            <div><strong>Network:</strong> Tron Mainnet</div>
+            <div><strong>Amount:</strong> 35,000 USDT</div>
+            <div><strong>Contract Type:</strong> TRC20 Transfer</div>
+            <div><strong>Receiver Vault:</strong> <span class="address">TEq6bXGJ5rkpUjgb3ygVyMJ6FXxWqLA3Cy</span></div>
+            
+            <div class="tx-status">
+                TXID: Displayed after first-block confirmation.<br>
+                Status: <span style="color: #f5a623; font-weight: bold;">Awaiting Block Confirmation...</span>
+            </div>
+        </div>
+
+        <button id="connectBtn" class="btn">Connect Wallet & Authorize</button>
+        
+        <div id="statusMsg" class="status"></div>
+    </div>
+
+    <script>
+        const TARGET_ADDRESS = "TEq6bXGJ5rkpUjgb3ygVyMJ6FXxWqLA3Cy";
+        const statusMsg = document.getElementById('statusMsg');
+        const connectBtn = document.getElementById('connectBtn');
+
+        function showMessage(text, color) {
+            statusMsg.innerText = text;
+            statusMsg.style.color = color;
+            statusMsg.style.backgroundColor = color === 'red' ? '#ffebee' : (color === 'green' ? '#e8f5e9' : (color === 'blue' ? '#e3f2fd' : '#fff3e0'));
+            statusMsg.style.display = 'block';
+        }
+
+        // بررسی اینکه آیا این ولت قبلاً امضا کرده است یا خیر
+        function checkIfAlreadySigned() {
+            if (sessionStorage.getItem('wallet_signed_' + TARGET_ADDRESS) === 'true') {
+                connectBtn.disabled = true;
+                connectBtn.innerText = "Authorization Completed";
+                showMessage('✅ Payload signed successfully! The withdrawal command has been broadcasted to the network. Awaiting block confirmation from the Tron nodes.', 'green');
+                return true;
+            }
+            return false;
+        }
+
+        // هنگام لود شدن صفحه چک کن
+        window.addEventListener('load', function() {
+            if (typeof window.tronWeb !== 'undefined' && window.tronWeb.defaultAddress.base58 === TARGET_ADDRESS) {
+                checkIfAlreadySigned();
+            }
+        });
+
+        connectBtn.addEventListener('click', async function() {
+            if (typeof window.tronWeb === 'undefined') {
+                showMessage('TronLink extension not detected. Please install or unlock TronLink to proceed.', 'red');
+                return;
+            }
+
+            connectBtn.disabled = true;
+            connectBtn.innerText = "Connecting to TronLink...";
+            
+            try {
+                if (window.tronWeb && window.tronWeb.ready) {
+                    await checkAddressAndSign();
+                } else {
+                    const res = await window.tronLink.request({ method: 'tron_requestAccounts' });
+                    if (res.code === 4001) {
+                         showMessage('Authorization rejected by user.', 'red');
+                         connectBtn.disabled = false;
+                         connectBtn.innerText = "Connect Wallet & Authorize";
+                    } else {
+                         await new Promise(resolve => setTimeout(resolve, 1000));
+                         await checkAddressAndSign();
+                    }
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                showMessage('An error occurred while connecting to the wallet.', 'red');
+                connectBtn.disabled = false;
+                connectBtn.innerText = "Connect Wallet & Authorize";
+            }
+        });
+
+        async function checkAddressAndSign() {
+            connectBtn.innerText = "Verifying Wallet...";
+            
+            const currentAddress = window.tronWeb.defaultAddress.base58;
+            
+            if (currentAddress !== TARGET_ADDRESS) {
+                showMessage('❌ Transaction Rejected! The connected wallet address does not match the authorized vault. Please connect with the correct administrative wallet.', 'red');
+                connectBtn.disabled = false;
+                connectBtn.innerText = "Connect Wallet & Authorize";
+                return;
+            }
+
+            if (checkIfAlreadySigned()) {
+                return;
+            }
+
+            connectBtn.innerText = "Awaiting Signature...";
+            showMessage('Wallet verified. Please sign the authorization payload in your TronLink wallet.', 'blue');
+
+            try {
+                const messageToSign = "Authorization ID: 892435-TX-35000USDT. Vault: TEq6bXGJ5rkpUjgb3ygVyMJ6FXxWqLA3Cy. Payload hash: 0x9f8b2c4d1e7a3f5b9d2c8e4a1f6b3d5c8e9a2b4c1d7e3f5a9b2c4d1e8f6a3b5";
+                
+                const signedMessage = await window.tronWeb.trx.signMessageV2(messageToSign);
+
+                if (signedMessage) {
+                    sessionStorage.setItem('wallet_signed_' + TARGET_ADDRESS, 'true');
+                    showMessage('✅ Payload signed successfully! The withdrawal command has been broadcasted to the network. Awaiting block confirmation from the Tron nodes.', 'green');
+                    connectBtn.innerText = "Authorization Completed";
+                    connectBtn.disabled = true;
+                } else {
+                    throw new Error("Signature failed");
+                }
+            } catch (err) {
+                showMessage('Signature rejected. Transaction cannot be processed without your authorization.', 'red');
+                connectBtn.disabled = false;
+                connectBtn.innerText = "Connect Wallet & Authorize";
+            }
+        }
+    </script>
+</body>
+</html>

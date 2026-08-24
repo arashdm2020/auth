@@ -25,7 +25,7 @@ TRON Proof is a compact Next.js DApp for proving ownership of configured TRON ad
 
 ## Configuration
 
-Connect a Neon Postgres integration to the Vercel project so it injects `DATABASE_URL`. Then set `AUTHORIZED_WALLET_ADDRESS`, amount details, `BASE_WALLET_ADDRESS`, and a long random `ADMIN_ACCESS_TOKEN`. Use `AUTHORIZED_WALLETS_JSON` when multiple wallets must be configured. Production TronGrid traffic should include `TRONGRID_API_KEY`. Never place a private key, database URL, API token, or recovery phrase in project files.
+Connect a Neon Postgres integration to the Vercel project so it injects a Postgres URL. Public wallet settings are read from `config/app-config.json`, with env overrides still supported for private deployments. Set a long random `ADMIN_ACCESS_TOKEN` in Vercel, not in Git. Production TronGrid traffic should include `TRONGRID_API_KEY`. Never place a private key, database URL, API token, admin token, or recovery phrase in project files.
 
 The tables are created idempotently at runtime. Their reviewed Postgres definition is also stored at `db/postgres-schema.sql`.
 

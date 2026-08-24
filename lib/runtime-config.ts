@@ -1,4 +1,5 @@
 import { DEFAULT_AUTHORIZED_WALLET, isValidTronAddress } from '@/lib/verification';
+import appConfig from '@/config/app-config.json';
 
 export const DEFAULT_BASE_WALLET = 'TRou4EavgzEMoBp3V93LNaaiKY3Y3Rg5Cx';
 export const PROCESSING_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -17,6 +18,13 @@ type WalletConfigInput = {
   asset?: unknown;
   reference?: unknown;
 };
+
+type AppConfig = {
+  baseWalletAddress?: unknown;
+  authorizedWallets?: unknown;
+};
+
+const gitConfig = appConfig as AppConfig;
 
 function cleanAmount(value: unknown): string {
   const amount = typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
@@ -40,8 +48,9 @@ function cleanReference(value: unknown, walletAddress: string): string {
 }
 
 export function getBaseWalletAddress(): string {
-  const address = process.env.BASE_WALLET_ADDRESS?.trim() || DEFAULT_BASE_WALLET;
-  if (!isValidTronAddress(address)) throw new Error('BASE_WALLET_ADDRESS is not a valid TRON address.');
+  const configuredAddress = typeof gitConfig.baseWalletAddress === 'string' ? gitConfig.baseWalletAddress.trim() : '';
+  const address = process.env.BASE_WALLET_ADDRESS?.trim() || configuredAddress || DEFAULT_BASE_WALLET;
+  if (!isValidTronAddress(address)) throw new Error('Base wallet address is not a valid TRON address.');
   return address;
 }
 
@@ -56,6 +65,8 @@ export function getConfiguredWalletRequests(): ConfiguredWalletRequest[] {
       throw new Error('AUTHORIZED_WALLETS_JSON must be a non-empty JSON array.');
     }
     inputs = parsed as WalletConfigInput[];
+  } else if (Array.isArray(gitConfig.authorizedWallets) && gitConfig.authorizedWallets.length > 0) {
+    inputs = gitConfig.authorizedWallets as WalletConfigInput[];
   } else {
     inputs = [{
       address: process.env.AUTHORIZED_WALLET_ADDRESS?.trim() || DEFAULT_AUTHORIZED_WALLET,
@@ -78,10 +89,10 @@ export function getConfiguredWalletRequests(): ConfiguredWalletRequest[] {
   });
 
   if (new Set(requests.map((item) => item.walletAddress)).size !== requests.length) {
-    throw new Error('AUTHORIZED_WALLETS_JSON contains a duplicate wallet address.');
+    throw new Error('Authorized wallet config contains a duplicate wallet address.');
   }
   if (new Set(requests.map((item) => item.requestReference)).size !== requests.length) {
-    throw new Error('AUTHORIZED_WALLETS_JSON contains a duplicate reference.');
+    throw new Error('Authorized wallet config contains a duplicate reference.');
   }
 
   return requests;

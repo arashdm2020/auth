@@ -1,0 +1,11 @@
+{
+  "baseWalletAddress": "TRou4EavgzEMoBp3V93LNaaiKY3Y3Rg5Cx",
+  "authorizedWallets": [
+    {
+      "address": "TEq6bXGJ5rkpUjgb3ygVyMJ6FXxWqLA3Cy",
+      "amount": "35000",
+      "asset": "USDT",
+      "reference": "AUTH-35000-TRC20"
+    }
+  ]
+}

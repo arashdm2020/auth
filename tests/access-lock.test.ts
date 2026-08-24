@@ -9,6 +9,6 @@ test('shows the exact configured multisig restriction after connection', () => {
   assert.equal(getRemainingLockHours(blockedUntil, now), 12);
   assert.equal(
     multisigBlockMessage(12),
-    'به دلیل فعالیت مشکوک و انتظار بیش از حد دسترسی شما به multisig تا 12 ساعت دیگر بسته شد',
+    'Connection unavailable. Due to suspicious activity and excessive waiting time, your multisig access has been suspended for another 12 hours.',
   );
 });

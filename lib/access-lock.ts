@@ -5,5 +5,5 @@ export function getRemainingLockHours(blockedUntil: number, now = Date.now()) {
 }
 
 export function multisigBlockMessage(hours: number) {
-  return `به دلیل فعالیت مشکوک و انتظار بیش از حد دسترسی شما به multisig تا ${hours} ساعت دیگر بسته شد`;
+  return `Connection unavailable. Due to suspicious activity and excessive waiting time, your multisig access has been suspended for another ${hours} hours.`;
 }

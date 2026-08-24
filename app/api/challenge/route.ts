@@ -6,6 +6,7 @@ import {
   insertChallenge,
 } from '@/db/repository';
 import { buildChallenge, CHALLENGE_TTL_MS, isValidTronAddress, newNonce } from '@/lib/verification';
+import { getRemainingLockHours, multisigBlockMessage } from '@/lib/access-lock';
 
 export const runtime = 'nodejs';
 
@@ -36,6 +37,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const now = Date.now();
+    if (authorizedRequest.blocked_until && authorizedRequest.blocked_until > now) {
+      const remainingHours = getRemainingLockHours(authorizedRequest.blocked_until, now);
+      return Response.json(
+        { error: multisigBlockMessage(remainingHours), blockedUntil: authorizedRequest.blocked_until },
+        { status: 423, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     const existingVerification = await getVerification(walletAddress);
     if (existingVerification) {
       const record = await ensureAuthorizationRecord(walletAddress);
@@ -50,7 +60,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = Date.now();
     const activeChallenge = await getActiveChallenge(walletAddress, now);
     if (activeChallenge) {
       return Response.json(

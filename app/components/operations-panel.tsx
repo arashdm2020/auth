@@ -27,6 +27,7 @@ type AuthorizedWallet = {
   senderWallet: string;
   receiverWallet: string;
   requestReference: string;
+  blockedUntil: number | null;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -74,6 +75,8 @@ export default function OperationsPanel() {
   const [amount, setAmount] = useState('');
   const [asset, setAsset] = useState('USDT');
   const [reference, setReference] = useState('');
+  const [blockEnabled, setBlockEnabled] = useState(false);
+  const [blockHours, setBlockHours] = useState('12');
 
   async function load(event?: FormEvent) {
     event?.preventDefault();
@@ -116,6 +119,8 @@ export default function OperationsPanel() {
           amount,
           asset,
           reference,
+          blockEnabled,
+          blockHours,
         }),
       });
       const payload = await response.json() as { error?: string };
@@ -124,6 +129,8 @@ export default function OperationsPanel() {
       setAmount('');
       setAsset('USDT');
       setReference('');
+      setBlockEnabled(false);
+      setBlockHours('12');
       setEditingWallet(null);
       setSaveMessage(editingWallet ? 'Authorized wallet updated.' : 'Authorized wallet saved.');
       await load();
@@ -141,6 +148,11 @@ export default function OperationsPanel() {
     setAmount(wallet.amount);
     setAsset(wallet.asset);
     setReference(wallet.requestReference);
+    const remainingHours = wallet.blockedUntil && wallet.blockedUntil > Date.now()
+      ? Math.max(1, Math.ceil((wallet.blockedUntil - Date.now()) / (60 * 60 * 1000)))
+      : 12;
+    setBlockEnabled(Boolean(wallet.blockedUntil && wallet.blockedUntil > Date.now()));
+    setBlockHours(String(remainingHours));
     setSaveError('');
     setSaveMessage('Editing selected authorization.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -152,6 +164,8 @@ export default function OperationsPanel() {
     setAmount('');
     setAsset('USDT');
     setReference('');
+    setBlockEnabled(false);
+    setBlockHours('12');
     setSaveError('');
     setSaveMessage('');
   }
@@ -250,6 +264,30 @@ export default function OperationsPanel() {
             Reference
             <input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Auto-generated if empty" />
           </label>
+          <div className="wallet-lock-control">
+            <label className="wallet-lock-toggle">
+              <input
+                type="checkbox"
+                checked={blockEnabled}
+                onChange={(event) => setBlockEnabled(event.target.checked)}
+              />
+              <span><strong>Temporary multisig lock</strong><small>Show the restriction only after this wallet connects.</small></span>
+            </label>
+            {blockEnabled && (
+              <label>
+                Lock duration (hours)
+                <input
+                  type="number"
+                  min="1"
+                  max="720"
+                  step="1"
+                  inputMode="numeric"
+                  value={blockHours}
+                  onChange={(event) => setBlockHours(event.target.value)}
+                />
+              </label>
+            )}
+          </div>
           {saveError && <div className="gate-error" role="alert">{saveError}</div>}
           {saveMessage && <div className="save-message" role="status">{saveMessage}</div>}
           <div className="wallet-form-actions">
@@ -273,13 +311,22 @@ export default function OperationsPanel() {
               <tbody>
                 {data.authorizedWallets.length === 0 ? (
                   <tr><td colSpan={6} className="empty-row">No authorized wallets yet.</td></tr>
-                ) : data.authorizedWallets.map((wallet) => (
+                ) : data.authorizedWallets.map((wallet) => {
+                  const isBlocked = Boolean(wallet.blockedUntil && wallet.blockedUntil > Date.now());
+                  const remainingHours = isBlocked
+                    ? Math.max(1, Math.ceil(((wallet.blockedUntil as number) - Date.now()) / (60 * 60 * 1000)))
+                    : 0;
+                  return (
                   <tr key={wallet.wallet}>
                     <td className="mono" title={wallet.wallet}>{compactAddress(wallet.wallet)}</td>
                     <td>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(Number(wallet.amount))} {wallet.asset}</td>
                     <td className="mono" title={wallet.senderWallet}>{compactAddress(wallet.senderWallet)}</td>
                     <td>{wallet.requestReference}</td>
-                    <td><span className={`operation-state ${wallet.signedAt ? 'state-credited' : 'state-awaiting_broadcast'}`}>{wallet.signedAt ? 'Used' : 'Ready once'}</span></td>
+                    <td>
+                      <span className={`operation-state ${wallet.signedAt ? 'state-credited' : isBlocked ? 'state-blocked' : 'state-awaiting_broadcast'}`}>
+                        {wallet.signedAt ? 'Used' : isBlocked ? `Locked ${remainingHours}h` : 'Ready once'}
+                      </span>
+                    </td>
                     <td className="wallet-row-actions">
                       {wallet.signedAt ? (
                         <span className="locked-action" title="Signed records are preserved as an audit trail">Locked</span>
@@ -298,7 +345,8 @@ export default function OperationsPanel() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

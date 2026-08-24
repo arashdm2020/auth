@@ -444,7 +444,7 @@ export default function WalletVerification() {
           </button>
         </div>
 
-        <div className={`status-message status-${phase}`} role="status" aria-live="polite">
+        <div className={`status-message status-${phase}`} role="status" aria-live="polite" dir="auto">
           <span className="status-mark">{phase === 'error' ? '!' : phase === 'ready' ? '✓' : '•'}</span>
           {message}
         </div>

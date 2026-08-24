@@ -14,6 +14,7 @@ export const authorizedWallets = sqliteTable(
     asset: text('asset').notNull(),
     receiverWallet: text('receiver_wallet').notNull(),
     requestReference: text('request_reference').notNull(),
+    blockedUntil: integer('blocked_until'),
     active: integer('active').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),

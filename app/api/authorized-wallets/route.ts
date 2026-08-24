@@ -16,6 +16,8 @@ type WalletInput = {
   amount?: unknown;
   asset?: unknown;
   reference?: unknown;
+  blockEnabled?: unknown;
+  blockHours?: unknown;
 };
 
 function unauthorizedResponse() {
@@ -39,7 +41,19 @@ function walletRequest(body: WalletInput) {
     asset: cleanAsset(body.asset),
     requestReference: cleanReference(body.reference, walletAddress),
     receiverWallet: getBaseWalletAddress(),
+    blockedUntil: cleanBlockedUntil(body.blockEnabled, body.blockHours),
   };
+}
+
+function cleanBlockedUntil(enabledValue: unknown, hoursValue: unknown) {
+  if (enabledValue !== true) return null;
+  const hours = typeof hoursValue === 'string' || typeof hoursValue === 'number'
+    ? Number(hoursValue)
+    : 12;
+  if (!Number.isInteger(hours) || hours < 1 || hours > 720) {
+    throw new Error('Lock duration must be between 1 and 720 hours.');
+  }
+  return Date.now() + hours * 60 * 60 * 1000;
 }
 
 function cleanAmount(value: unknown) {

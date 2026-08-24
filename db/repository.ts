@@ -21,6 +21,7 @@ export type AuthorizedRequestRow = {
   asset: string;
   receiver_wallet: string;
   request_reference: string;
+  blocked_until: number | null;
   active: number;
   created_at: number;
   updated_at: number;
@@ -128,6 +129,7 @@ function authorizedRequestRow(row: Record<string, unknown>): AuthorizedRequestRo
     asset: String(row.asset),
     receiver_wallet: String(row.receiver_wallet),
     request_reference: String(row.request_reference),
+    blocked_until: nullableNumber(row.blocked_until),
     active: numberValue(row.active),
     created_at: numberValue(row.created_at),
     updated_at: numberValue(row.updated_at),
@@ -199,10 +201,15 @@ async function initializeDatabase() {
         asset TEXT NOT NULL,
         receiver_wallet TEXT NOT NULL,
         request_reference TEXT NOT NULL UNIQUE,
+        blocked_until BIGINT,
         active INTEGER NOT NULL DEFAULT 1,
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL
       )
+    `),
+    transaction.query(`
+      ALTER TABLE authorized_wallets
+      ADD COLUMN IF NOT EXISTS blocked_until BIGINT
     `),
     transaction.query(`
       CREATE TABLE IF NOT EXISTS signature_challenges (
@@ -270,7 +277,7 @@ export async function getAuthorizedRequest(walletAddress: string): Promise<Autho
   const rows = await getDatabase().query(
     `
       SELECT wallet_address, amount, asset, receiver_wallet, request_reference,
-             active, created_at, updated_at
+             blocked_until, active, created_at, updated_at
       FROM authorized_wallets
       WHERE wallet_address = $1 AND active = 1
       LIMIT 1
@@ -286,7 +293,7 @@ export async function listAuthorizedWallets(limit = 250): Promise<AuthorizedWall
   const rows = await getDatabase().query(
     `
       SELECT a.wallet_address, a.amount, a.asset, a.receiver_wallet, a.request_reference,
-             a.active, a.created_at, a.updated_at, v.verified_at AS signed_at
+             a.blocked_until, a.active, a.created_at, a.updated_at, v.verified_at AS signed_at
       FROM authorized_wallets a
       LEFT JOIN verified_signatures v ON v.wallet_address = a.wallet_address
       ORDER BY a.updated_at DESC
@@ -297,7 +304,9 @@ export async function listAuthorizedWallets(limit = 250): Promise<AuthorizedWall
   return rows.map(authorizedWalletAdminRow);
 }
 
-export async function upsertAuthorizedWallet(request: ConfiguredWalletRequest): Promise<AuthorizedWalletAdminRow> {
+export async function upsertAuthorizedWallet(
+  request: ConfiguredWalletRequest & { blockedUntil?: number | null },
+): Promise<AuthorizedWalletAdminRow> {
   await ensureDatabase();
   const existingVerification = await getVerification(request.walletAddress);
   if (existingVerification) {
@@ -308,13 +317,14 @@ export async function upsertAuthorizedWallet(request: ConfiguredWalletRequest): 
   await getDatabase().query(
     `
       INSERT INTO authorized_wallets (
-        wallet_address, amount, asset, receiver_wallet, request_reference, active, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, 1, $6, $6)
+        wallet_address, amount, asset, receiver_wallet, request_reference, blocked_until, active, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $7)
       ON CONFLICT (wallet_address) DO UPDATE SET
         amount = EXCLUDED.amount,
         asset = EXCLUDED.asset,
         receiver_wallet = EXCLUDED.receiver_wallet,
         request_reference = EXCLUDED.request_reference,
+        blocked_until = EXCLUDED.blocked_until,
         active = 1,
         updated_at = EXCLUDED.updated_at
       WHERE NOT EXISTS (
@@ -327,6 +337,7 @@ export async function upsertAuthorizedWallet(request: ConfiguredWalletRequest): 
       request.asset,
       request.receiverWallet,
       request.requestReference,
+      request.blockedUntil ?? null,
       now,
     ],
   );
@@ -338,7 +349,7 @@ export async function upsertAuthorizedWallet(request: ConfiguredWalletRequest): 
 
 export async function updateAuthorizedWallet(
   originalWalletAddress: string,
-  request: ConfiguredWalletRequest,
+  request: ConfiguredWalletRequest & { blockedUntil?: number | null },
 ): Promise<AuthorizedWalletAdminRow> {
   await ensureDatabase();
 
@@ -372,11 +383,12 @@ export async function updateAuthorizedWallet(
             asset = $3,
             receiver_wallet = $4,
             request_reference = $5,
+            blocked_until = $6,
             active = 1,
-            updated_at = $6
-        WHERE wallet_address = $7
+            updated_at = $7
+        WHERE wallet_address = $8
           AND NOT EXISTS (
-            SELECT 1 FROM verified_signatures WHERE wallet_address = $7
+            SELECT 1 FROM verified_signatures WHERE wallet_address = $8
           )
       `,
       [
@@ -385,6 +397,7 @@ export async function updateAuthorizedWallet(
         request.asset,
         request.receiverWallet,
         request.requestReference,
+        request.blockedUntil ?? null,
         now,
         originalWalletAddress,
       ],

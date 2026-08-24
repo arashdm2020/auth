@@ -39,6 +39,7 @@ export async function GET(request: Request) {
           senderWallet: wallet.receiver_wallet,
           receiverWallet: wallet.wallet_address,
           requestReference: wallet.request_reference,
+          blockedUntil: wallet.blocked_until,
           active: wallet.active === 1,
           createdAt: wallet.created_at,
           updatedAt: wallet.updated_at,

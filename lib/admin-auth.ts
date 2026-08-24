@@ -15,7 +15,7 @@ async function safeEqual(left: string, right: string) {
 
 export async function authorizeAdmin(request: Request): Promise<AdminAuthorization> {
   const configured = process.env.ADMIN_ACCESS_TOKEN?.trim() || '';
-  if (configured.length < 24) return 'not_configured';
+  if (!configured) return 'not_configured';
 
   const header = request.headers.get('Authorization') || '';
   const supplied = header.startsWith('Bearer ') ? header.slice(7) : '';

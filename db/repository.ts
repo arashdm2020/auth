@@ -71,10 +71,22 @@ type Database = ReturnType<typeof neon>;
 let database: Database | undefined;
 let databaseReady: Promise<void> | undefined;
 
+function getConnectionString(): string {
+  const connectionString =
+    process.env.DATABASE_URL?.trim() ||
+    process.env.POSTGRES_PRISMA_URL?.trim() ||
+    process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+    process.env.POSTGRES_URL?.trim();
+
+  if (!connectionString) {
+    throw new Error('Postgres connection string is unavailable.');
+  }
+
+  return connectionString;
+}
+
 function getDatabase(): Database {
-  const connectionString = process.env.DATABASE_URL?.trim();
-  if (!connectionString) throw new Error('DATABASE_URL is unavailable.');
-  database ??= neon(connectionString);
+  database ??= neon(getConnectionString());
   return database;
 }
 

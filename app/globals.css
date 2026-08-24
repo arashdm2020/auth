@@ -173,7 +173,8 @@ a { color: inherit; }
 .wallet-option:disabled { cursor: wait; opacity: .55; transform: none; }
 .wallet-option.selected { border-color: rgba(235, 16, 40, .58); box-shadow: inset 0 0 0 1px rgba(235, 16, 40, .12); }
 .trust-option.selected { border-color: rgba(39, 101, 255, .7); box-shadow: inset 0 0 0 1px rgba(39, 101, 255, .14); }
-.primary-wallet-option { min-height: 76px; border-color: rgba(235, 16, 40, .24); background: linear-gradient(135deg, rgba(235, 16, 40, .13), #12161e 48%); }
+.trust-option { border-color: rgba(39, 101, 255, .28); background: linear-gradient(135deg, rgba(39, 101, 255, .12), #12161e 48%); }
+.tronlink-option { border-color: rgba(235, 16, 40, .24); background: linear-gradient(135deg, rgba(235, 16, 40, .11), #12161e 48%); }
 .wallet-option img { object-fit: contain; }
 .wallet-option > span { display: grid; gap: 4px; }
 .wallet-option strong { font-size: 12px; }

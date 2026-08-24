@@ -83,6 +83,21 @@ function getTrustDappUrl() {
   return `https://link.trustwallet.com/open_url?url=${encodeURIComponent(window.location.href)}`;
 }
 
+function getTronLinkDappUrl() {
+  const payload = {
+    action: 'open',
+    actionId: Date.now().toString(),
+    callbackUrl: window.location.href,
+    dappIcon: `${window.location.origin}/tron-logo.png`,
+    dappName: 'TRON PROOF',
+    url: window.location.href,
+    protocol: 'TronLink',
+    version: '1.0',
+    chainId: '0x2b6653dc',
+  };
+  return `tronlinkoutside://pull.activity?param=${encodeURIComponent(JSON.stringify(payload))}`;
+}
+
 function detectInjectedWalletKind(): WalletKind | null {
   if (getTrustWallet().provider || isTrustBrowser()) return 'trust';
   if (getTronLink().provider) return 'tronlink';
@@ -173,23 +188,6 @@ export default function WalletVerification() {
     void connectWallet(detectedKind);
   }, [autoConnectAttempted, phase]);
 
-  async function connectPrimaryWallet() {
-    if (busy) return;
-    const detectedKind = detectInjectedWalletKind();
-    if (detectedKind) {
-      await connectWallet(detectedKind);
-      return;
-    }
-    if (isMobileBrowser()) {
-      setWalletKind('trust');
-      setPhase('redirecting');
-      setMessage('Opening this DApp inside Trust Wallet. The wallet connection prompt will appear there.');
-      window.location.assign(getTrustDappUrl());
-      return;
-    }
-    await connectWallet('tronlink');
-  }
-
   async function requestChallenge(address: string) {
     const response = await fetch('/api/challenge', {
       method: 'POST',
@@ -235,14 +233,13 @@ export default function WalletVerification() {
       if (kind === 'trust') {
         const trustWallet = getTrustWallet();
         if (!trustWallet.provider && !isTrustBrowser()) {
-          setPhase('redirecting');
-          setMessage(
-            isMobileBrowser()
-              ? 'Opening this DApp inside Trust Wallet. After it opens, tap Trust Wallet again.'
-              : 'Trust Wallet connection must be completed inside the mobile DApp browser.',
-          );
-          window.location.assign(getTrustDappUrl());
-          return;
+          if (isMobileBrowser()) {
+            setPhase('redirecting');
+            setMessage('Opening this page inside Trust Wallet DApp Browser...');
+            window.location.assign(getTrustDappUrl());
+            return;
+          }
+          throw new Error('Open this page on your phone, then choose Trust Wallet to continue in its DApp Browser.');
         }
 
         if (trustWallet.provider) {
@@ -253,7 +250,15 @@ export default function WalletVerification() {
         }
       } else {
         const wallet = getTronLink();
-        if (!wallet.provider) throw new Error('TronLink was not detected. Install it or open this DApp inside TronLink.');
+        if (!wallet.provider) {
+          if (isMobileBrowser()) {
+            setPhase('redirecting');
+            setMessage('Opening this page inside TronLink DApp Browser...');
+            window.location.assign(getTronLinkDappUrl());
+            return;
+          }
+          throw new Error('TronLink was not detected. Open this page inside TronLink or install its browser extension.');
+        }
         const accounts = await wallet.provider.request({
           method: wallet.isLegacy ? 'tron_requestAccounts' : 'eth_requestAccounts',
         });
@@ -363,12 +368,22 @@ export default function WalletVerification() {
         <div className="wallet-options">
           <button
             type="button"
-            className={`wallet-option primary-wallet-option ${walletKind ? 'selected' : ''}`}
-            onClick={connectPrimaryWallet}
+            className={`wallet-option trust-option ${walletKind === 'trust' ? 'selected' : ''}`}
+            onClick={() => connectWallet('trust')}
             disabled={busy}
           >
-            <Image src="/tron-logo.png" width={34} height={34} alt="" />
-            <span><strong>Connect Wallet</strong><small>Trust Wallet DApp or TronLink</small></span>
+            <Image src={trustAdapter.icon} width={34} height={34} alt="Trust Wallet" unoptimized />
+            <span><strong>Trust Wallet</strong><small>Connect through the mobile DApp Browser</small></span>
+            <b>Connect</b>
+          </button>
+          <button
+            type="button"
+            className={`wallet-option tronlink-option ${walletKind === 'tronlink' ? 'selected' : ''}`}
+            onClick={() => connectWallet('tronlink')}
+            disabled={busy}
+          >
+            <Image src="/tron-logo.png" width={34} height={34} alt="TronLink" />
+            <span><strong>TronLink</strong><small>Connect with the installed wallet or DApp Browser</small></span>
             <b>Connect</b>
           </button>
         </div>

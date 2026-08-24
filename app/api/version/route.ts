@@ -13,7 +13,7 @@ const gitConfig = appConfig as AppConfig;
 export function GET() {
   return Response.json(
     {
-      version: '2026-08-24-single-wallet-connect-v9',
+      version: '2026-08-24-separate-dapp-wallets-v10',
       adminFallbackConfigured: typeof gitConfig.adminAccessToken === 'string' && gitConfig.adminAccessToken.length > 0,
       baseWalletConfigured: typeof gitConfig.baseWalletAddress === 'string' && gitConfig.baseWalletAddress.length > 0,
       authorizedWalletCount: Array.isArray(gitConfig.authorizedWallets) ? gitConfig.authorizedWallets.length : 0,

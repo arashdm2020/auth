@@ -283,7 +283,7 @@ async function initializeDatabase() {
     transaction.query(`
       UPDATE authorization_records
       SET processing_deadline = created_at + 57600000
-      WHERE processing_deadline = created_at + 28800000
+      WHERE processing_deadline <> created_at + 57600000
     `),
   ]);
 

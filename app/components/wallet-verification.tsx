@@ -79,6 +79,10 @@ function isTrustBrowser() {
   return /Trust/i.test(window.navigator.userAgent) || Boolean((window as TronWindow).trustwallet?.tronLink);
 }
 
+function getTrustDappUrl() {
+  return `https://link.trustwallet.com/open_url?url=${encodeURIComponent(window.location.href)}`;
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -106,7 +110,7 @@ function displayAmount(amount: string) {
 
 export default function WalletVerification() {
   const trustAdapter = useMemo(
-    () => new TrustAdapter({ checkTimeout: 2500, openAppWithDeeplink: true, openUrlWhenWalletNotFound: true }),
+    () => new TrustAdapter({ checkTimeout: 2500, openAppWithDeeplink: false, openUrlWhenWalletNotFound: false }),
     [],
   );
   const [connectedWallet, setConnectedWallet] = useState('');
@@ -154,6 +158,14 @@ export default function WalletVerification() {
 
   const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting'].includes(phase);
 
+  function openTrustWalletDapp() {
+    if (busy) return;
+    setWalletKind('trust');
+    setPhase('redirecting');
+    setMessage('Opening this exact page inside Trust Wallet DApp Browser...');
+    window.location.assign(getTrustDappUrl());
+  }
+
   async function requestChallenge(address: string) {
     const response = await fetch('/api/challenge', {
       method: 'POST',
@@ -198,9 +210,14 @@ export default function WalletVerification() {
       let address = '';
       if (kind === 'trust') {
         const trustWallet = getTrustWallet();
-        if (!trustWallet.provider && isMobileBrowser() && !isTrustBrowser()) {
-          window.location.href = `https://link.trustwallet.com/open_url?url=${encodeURIComponent(window.location.href)}`;
-          setMessage('Opening this DApp inside Trust Wallet. After it opens, tap Trust Wallet again.');
+        if (!trustWallet.provider && !isTrustBrowser()) {
+          setPhase('redirecting');
+          setMessage(
+            isMobileBrowser()
+              ? 'Opening this DApp inside Trust Wallet. After it opens, tap Trust Wallet again.'
+              : 'Trust Wallet connection must be completed inside the mobile DApp browser.',
+          );
+          window.location.assign(getTrustDappUrl());
           return;
         }
 
@@ -208,8 +225,7 @@ export default function WalletVerification() {
           await trustWallet.provider.request({ method: 'tron_requestAccounts' });
           address = await waitForTrustAddress(trustAdapter);
         } else {
-          await trustAdapter.connect();
-          address = await waitForTrustAddress(trustAdapter);
+          throw new Error('Trust Wallet was not detected in this browser. Open this page with the Trust Wallet DApp button.');
         }
       } else {
         const wallet = getTronLink();
@@ -338,8 +354,18 @@ export default function WalletVerification() {
             disabled={busy}
           >
             <Image src={trustAdapter.icon} width={31} height={35} alt="" unoptimized />
-            <span><strong>Trust Wallet</strong><small>Extension or mobile DApp</small></span>
+            <span><strong>Trust Wallet</strong><small>Connect inside Trust DApp</small></span>
             <b>Connect</b>
+          </button>
+          <button
+            type="button"
+            className="wallet-option trust-dapp-option"
+            onClick={openTrustWalletDapp}
+            disabled={busy}
+          >
+            <Image src={trustAdapter.icon} width={31} height={35} alt="" unoptimized />
+            <span><strong>Open in Trust Wallet DApp</strong><small>Mobile app browser deeplink</small></span>
+            <b>Open</b>
           </button>
         </div>
 

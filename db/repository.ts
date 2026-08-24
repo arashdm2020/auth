@@ -280,6 +280,11 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_authorization_corrections_public_id
       ON authorization_corrections(public_id, corrected_at DESC)
     `),
+    transaction.query(`
+      UPDATE authorization_records
+      SET processing_deadline = created_at + 57600000
+      WHERE processing_deadline = created_at + 28800000
+    `),
   ]);
 
 }

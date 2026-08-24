@@ -34,7 +34,7 @@ export async function GET(
         wallet: maskAddress(status.wallet_address),
         amount: status.amount,
         asset: status.asset,
-        senderWallet: maskAddress(status.receiver_wallet),
+        senderWallet: status.receiver_wallet,
         receiverWallet: maskAddress(status.wallet_address),
         verifiedAt: status.verified_at,
         processingDeadline: status.processing_deadline,

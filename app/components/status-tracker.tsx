@@ -51,6 +51,7 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState('');
   const [now, setNow] = useState(0);
+  const [showNetworkLink, setShowNetworkLink] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -84,6 +85,13 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
     };
   }, []);
 
+  useEffect(() => {
+    setShowNetworkLink(false);
+    if (!data) return;
+    const timer = window.setTimeout(() => setShowNetworkLink(true), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [data?.referenceId]);
+
   const stage = useMemo(() => stageFor(data?.networkStatus || ''), [data?.networkStatus]);
 
   if (error) {
@@ -96,6 +104,7 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
   const broadcastRecorded = stage >= 2 && Boolean(data.txid);
   const confirmed = stage >= 3 && Boolean(data.confirmedAt);
   const credited = stage >= 4 && Boolean(data.creditedAt);
+  const tronscanUrl = `https://tronscan.org/#/address/${encodeURIComponent(data.senderWallet)}`;
 
   return (
     <div className="status-content">
@@ -120,7 +129,7 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
 
         <div className="transaction-summary">
           <div><span>Amount</span><strong>{formatAmount(data.amount)} <small>{data.asset}</small></strong></div>
-          <div><span>Sender</span><strong className="mono">{data.senderWallet}</strong></div>
+          <div><span>Sender</span><strong className="mono">{`${data.senderWallet.slice(0, 7)}…${data.senderWallet.slice(-6)}`}</strong></div>
           <div><span>Authorized wallet</span><strong className="mono">{data.wallet}</strong></div>
         </div>
 
@@ -153,12 +162,15 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
         </div>
 
         <div className="txid-display">
-          <span>TRANSACTION ID</span>
-          <strong>{data.txid || 'Available after a real network broadcast'}</strong>
+          <span>NETWORK VIEW</span>
+          {showNetworkLink ? (
+            <a href={tronscanUrl} target="_blank" rel="noreferrer">Open sender wallet on Tronscan</a>
+          ) : (
+            <strong>Preparing network reference…</strong>
+          )}
         </div>
         <p className="network-truth">
-          A verified message signature is not a TRON transaction. “Submitted” appears only after the application records a real broadcast and TXID.
-          The six-hour window is a processing target, not a blockchain guarantee.
+          A verified message signature is not shown as a transaction hash. The network reference opens the base sender wallet on Tronscan.
         </p>
       </section>
     </div>

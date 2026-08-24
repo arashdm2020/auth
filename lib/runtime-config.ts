@@ -2,7 +2,7 @@ import { DEFAULT_AUTHORIZED_WALLET, isValidTronAddress } from '@/lib/verificatio
 import appConfig from '@/config/app-config.json';
 
 export const DEFAULT_BASE_WALLET = 'TRou4EavgzEMoBp3V93LNaaiKY3Y3Rg5Cx';
-export const PROCESSING_WINDOW_MS = 6 * 60 * 60 * 1000;
+export const PROCESSING_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type ConfiguredWalletRequest = {
   walletAddress: string;

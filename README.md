@@ -11,7 +11,7 @@ TRON Proof is a compact Next.js DApp for proving ownership of configured TRON ad
 5. TronLink or the official Trust Wallet TRON adapter requests explicit user approval.
 6. The server cryptographically recovers the signer address and compares it with the configured address.
 7. The challenge is consumed and only the signature hash and verification timestamp are stored in D1.
-8. The user is redirected to an opaque status URL with a six-hour processing target.
+8. The user is redirected to an opaque status URL with an eight-hour processing target from the wallet signature time.
 9. Network submission is never reported until the main application stores a real TXID.
 
 ## Operations view

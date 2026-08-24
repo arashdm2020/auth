@@ -117,7 +117,7 @@ export default function StatusTracker({ referenceId }: { referenceId: string }) 
         <div className="processing-clock">
           <span>PROCESSING TARGET</span>
           <strong>{countdown(data.processingDeadline, now)}</strong>
-          <small>Up to 6 hours from signature verification</small>
+          <small>Up to 8 hours from wallet signature time</small>
         </div>
       </section>
 

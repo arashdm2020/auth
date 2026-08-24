@@ -1,4 +1,12 @@
+import appConfig from '@/config/app-config.json';
+
 export type AdminAuthorization = 'authorized' | 'unauthorized' | 'not_configured';
+
+type AppConfig = {
+  adminAccessToken?: unknown;
+};
+
+const gitConfig = appConfig as AppConfig;
 
 async function digest(value: string) {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
@@ -14,7 +22,8 @@ async function safeEqual(left: string, right: string) {
 }
 
 export async function authorizeAdmin(request: Request): Promise<AdminAuthorization> {
-  const configured = process.env.ADMIN_ACCESS_TOKEN?.trim() || '';
+  const configuredToken = typeof gitConfig.adminAccessToken === 'string' ? gitConfig.adminAccessToken.trim() : '';
+  const configured = process.env.ADMIN_ACCESS_TOKEN?.trim() || configuredToken;
   if (!configured) return 'not_configured';
 
   const header = request.headers.get('Authorization') || '';

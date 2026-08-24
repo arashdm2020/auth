@@ -1,5 +1,6 @@
 import {
-  getAuthorizedWallet,
+  ensureAuthorizationRecord,
+  getAuthorizedRequest,
   getChallenge,
   recordVerification,
 } from '@/db/repository';
@@ -32,13 +33,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const [authorizedWallet, challenge] = await Promise.all([
-      getAuthorizedWallet(),
+    const [authorizedRequest, challenge] = await Promise.all([
+      getAuthorizedRequest(walletAddress),
       getChallenge(challengeId),
     ]);
     const now = Date.now();
 
-    if (!challenge || challenge.wallet_address !== walletAddress || walletAddress !== authorizedWallet) {
+    if (!challenge || challenge.wallet_address !== walletAddress || !authorizedRequest) {
       return Response.json(
         { error: 'This signing challenge does not belong to the connected wallet.' },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
@@ -74,11 +75,23 @@ export async function POST(request: Request) {
       walletAddress,
       signatureHash: await hashSignature(signature),
       verifiedAt: now,
+      request: authorizedRequest,
     });
 
-    if (!recorded) {
+    if (!recorded.inserted) {
+      const existing = await ensureAuthorizationRecord(walletAddress);
+      if (existing) {
+        return Response.json(
+          {
+            verified: true,
+            alreadyVerified: true,
+            statusUrl: `/status/${existing.public_id}`,
+          },
+          { headers: { 'Cache-Control': 'no-store' } },
+        );
+      }
       return Response.json(
-        { error: 'This signing challenge has already been used.' },
+        { error: 'This wallet has already used its one-time signature authorization.' },
         { status: 409, headers: { 'Cache-Control': 'no-store' } },
       );
     }
@@ -88,8 +101,10 @@ export async function POST(request: Request) {
         verified: true,
         walletAddress,
         verifiedAt: now,
-        networkStatus: 'validation_pending',
+        networkStatus: 'awaiting_broadcast',
         txid: null,
+        processingDeadline: recorded.processingDeadline,
+        statusUrl: `/status/${recorded.publicId}`,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

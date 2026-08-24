@@ -10,7 +10,6 @@ type TronWebLike = {
 };
 
 type TronProvider = {
-  isTronLink?: boolean;
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   tronWeb?: TronWebLike | false;
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
@@ -24,31 +23,28 @@ declare global {
     tronWeb?: TronWebLike;
   }
 }
-
 type WalletKind = 'tronlink' | 'trust';
-type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'success' | 'error';
+type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'redirecting' | 'error';
+
+type RequestDetails = {
+  amount: string;
+  asset: string;
+  receiverWallet: string;
+  reference: string;
+};
 
 type Challenge = {
   id: string;
   message: string;
   displayMessage: string;
   expiresAt: number;
+  request: RequestDetails;
 };
 
-type ConfigResponse = {
-  authorizedWallet: string;
-  verified: boolean;
-  verifiedAt: number | null;
-  networkStatus: string;
-  txid: string | null;
-  creditedAt: number | null;
-  error?: string;
-};
-
-type Settlement = {
-  networkStatus: string;
-  txid: string | null;
-  creditedAt: number | null;
+type ChallengeResponse = Partial<Challenge> & {
+  alreadyVerified?: boolean;
+  verifiedAt?: number;
+  statusUrl?: string;
 };
 
 async function readResponse<T>(response: Response): Promise<T> {
@@ -65,11 +61,15 @@ function getTronLink() {
   return { provider, tronWeb, isLegacy: !modernProvider && Boolean(legacyProvider) };
 }
 
-function settlementLabel(status: string) {
-  if (status === 'submitted') return 'Submitted to TRON';
-  if (status === 'confirmed') return 'Confirmed in block';
-  if (status === 'credited') return 'Account credited';
-  return 'Pending application validation';
+function shortenAddress(address: string) {
+  return `${address.slice(0, 7)}…${address.slice(-6)}`;
+}
+
+function displayAmount(amount: string) {
+  const value = Number(amount);
+  return Number.isFinite(value)
+    ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(value)
+    : amount;
 }
 
 export default function WalletVerification() {
@@ -77,46 +77,27 @@ export default function WalletVerification() {
     () => new TrustAdapter({ checkTimeout: 2500, openAppWithDeeplink: true, openUrlWhenWalletNotFound: true }),
     [],
   );
-  const [authorizedWallet, setAuthorizedWallet] = useState('');
   const [connectedWallet, setConnectedWallet] = useState('');
   const [walletKind, setWalletKind] = useState<WalletKind | null>(null);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [requestDetails, setRequestDetails] = useState<RequestDetails | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [message, setMessage] = useState('Loading secure authorization data...');
-  const [verifiedAt, setVerifiedAt] = useState<number | null>(null);
-  const [settlement, setSettlement] = useState<Settlement>({
-    networkStatus: 'not_started',
-    txid: null,
-    creditedAt: null,
-  });
+  const [message, setMessage] = useState('Loading secure authorization policy...');
 
   useEffect(() => {
     let active = true;
     fetch('/api/config', { cache: 'no-store' })
-      .then((response) => readResponse<ConfigResponse>(response))
-      .then((config) => {
+      .then((response) => readResponse(response))
+      .then(() => {
         if (!active) return;
-        setAuthorizedWallet(config.authorizedWallet);
-        setSettlement({
-          networkStatus: config.networkStatus,
-          txid: config.txid,
-          creditedAt: config.creditedAt,
-        });
-        if (config.verified) {
-          setPhase('success');
-          setVerifiedAt(config.verifiedAt);
-          setMessage('Wallet signature verified. Transaction validation is pending.');
-        } else {
-          setPhase('idle');
-          setMessage('Choose a compatible wallet to continue.');
-        }
+        setPhase('idle');
+        setMessage('Choose a compatible wallet to check eligibility.');
       })
       .catch((error: Error) => {
         if (!active) return;
         setPhase('error');
         setMessage(error.message);
       });
-
     return () => { active = false; };
   }, []);
 
@@ -124,6 +105,7 @@ export default function WalletVerification() {
     const resetConnection = () => {
       setConnectedWallet('');
       setChallenge(null);
+      setRequestDetails(null);
       setWalletKind(null);
       setPhase('idle');
       setMessage('The active account changed. Choose a wallet to reconnect.');
@@ -138,7 +120,7 @@ export default function WalletVerification() {
     };
   }, [trustAdapter]);
 
-  const busy = ['loading', 'connecting', 'signing', 'verifying'].includes(phase);
+  const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting'].includes(phase);
 
   async function requestChallenge(address: string) {
     const response = await fetch('/api/challenge', {
@@ -146,25 +128,37 @@ export default function WalletVerification() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ walletAddress: address }),
     });
-    const data = await readResponse<Challenge & { alreadyVerified?: boolean; verifiedAt?: number }>(response);
+    const data = await readResponse<ChallengeResponse>(response);
 
-    if (data.alreadyVerified) {
-      setPhase('success');
-      setVerifiedAt(data.verifiedAt ?? Date.now());
-      setSettlement((current) => ({ ...current, networkStatus: 'validation_pending' }));
-      setMessage('Wallet signature verified. Transaction validation is pending.');
+    if (data.alreadyVerified && data.statusUrl) {
+      setPhase('redirecting');
+      setMessage('This wallet has already completed its one-time signature. Opening its status page...');
+      window.location.assign(data.statusUrl);
       return;
     }
 
-    setChallenge(data);
+    if (!data.id || !data.message || !data.displayMessage || !data.expiresAt || !data.request) {
+      throw new Error('The authorization request is incomplete.');
+    }
+
+    const nextChallenge: Challenge = {
+      id: data.id,
+      message: data.message,
+      displayMessage: data.displayMessage,
+      expiresAt: data.expiresAt,
+      request: data.request,
+    };
+    setChallenge(nextChallenge);
+    setRequestDetails(data.request);
     setPhase('ready');
-    setMessage('Connection approved. Review and sign the one-time authorization message.');
+    setMessage('Wallet eligible. Review and sign the single-use authorization message.');
   }
 
   async function connectWallet(kind: WalletKind) {
-    if (!authorizedWallet || busy) return;
+    if (busy) return;
     setWalletKind(kind);
     setChallenge(null);
+    setRequestDetails(null);
     setPhase('connecting');
     setMessage(`Connecting to ${kind === 'trust' ? 'Trust Wallet' : 'TronLink'}...`);
 
@@ -186,9 +180,6 @@ export default function WalletVerification() {
 
       if (!address) throw new Error('The wallet did not provide an active TRON account.');
       setConnectedWallet(address);
-      if (address !== authorizedWallet) {
-        throw new Error('Wallet authorization failed. Review the connected account and try again.');
-      }
       await requestChallenge(address);
     } catch (error) {
       setPhase('error');
@@ -213,7 +204,7 @@ export default function WalletVerification() {
       }
 
       setPhase('verifying');
-      setMessage('Verifying the recovered signer on the server...');
+      setMessage('Verifying the recovered signer and recording the one-time authorization...');
       const response = await fetch('/api/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,80 +214,56 @@ export default function WalletVerification() {
           signature,
         }),
       });
-      const result = await readResponse<{
-        verified: boolean;
-        verifiedAt: number;
-        networkStatus: string;
-        txid: string | null;
-      }>(response);
+      const result = await readResponse<{ verified: boolean; statusUrl: string }>(response);
 
-      setPhase('success');
-      setVerifiedAt(result.verifiedAt);
-      setSettlement({ networkStatus: result.networkStatus, txid: result.txid, creditedAt: null });
-      setMessage('Wallet signature verified. Transaction validation is pending.');
       setChallenge(null);
+      setPhase('redirecting');
+      setMessage('Signature verified. Opening the processing status...');
+      window.location.assign(result.statusUrl);
     } catch (error) {
       setPhase('ready');
       setMessage(error instanceof Error ? error.message : 'The signature was declined or could not be verified.');
     }
   }
 
-  if (phase === 'success') {
-    return (
-      <div className="authorization-grid success-grid">
-        <section className="summary-panel">
-          <span className="section-label">AUTHORIZATION RECEIVED</span>
-          <h2>Signature verified.</h2>
-          <p className="section-copy">
-            The wallet proof passed server-side verification. Network submission remains locked until the main application validates the request.
-          </p>
-
-          <div className="result-meta">
-            <div><span>Verification</span><strong>Completed</strong></div>
-            <div><span>Network status</span><strong>{settlementLabel(settlement.networkStatus)}</strong></div>
-            <div><span>Account credit</span><strong>{settlement.creditedAt ? 'Completed' : 'Waiting for confirmation'}</strong></div>
-          </div>
-        </section>
-
-        <section className="progress-panel" aria-label="Transaction progress">
-          <div className="progress-row complete"><span>1</span><div><strong>Wallet signature</strong><small>Cryptographically verified</small></div></div>
-          <div className="progress-row active"><span>2</span><div><strong>Transaction validation</strong><small>Pending main application validation</small></div></div>
-          <div className="progress-row"><span>3</span><div><strong>First-block confirmation</strong><small>Waiting for network submission</small></div></div>
-
-          <div className="txid-field">
-            <span>TXID</span>
-            <strong>{settlement.txid || 'Displayed after first-block confirmation'}</strong>
-          </div>
-          <p className="truth-note">No network transaction or balance credit is claimed until a real TXID is returned and confirmed.</p>
-          {verifiedAt && <time>Verified {new Date(verifiedAt).toLocaleString('en-US')}</time>}
-        </section>
-      </div>
-    );
-  }
-
   return (
     <div className="authorization-grid">
       <section className="summary-panel">
         <div className="summary-heading">
-          <span className="section-label">TRANSACTION REQUEST</span>
-          <span className="pending-badge"><i /> Awaiting authorization</span>
+          <span className="section-label">AUTHORIZATION REQUEST</span>
+          <span className={`pending-badge ${requestDetails ? 'eligible-badge' : ''}`}>
+            <i /> {requestDetails ? 'Wallet eligible' : 'Details locked'}
+          </span>
         </div>
-        <h2>Review authorization</h2>
-        <p className="section-copy">Confirm the request details before connecting the designated wallet.</p>
+        <h2>{requestDetails ? 'Request unlocked' : 'Connect to reveal details'}</h2>
+        <p className="section-copy">
+          The amount and receiving account become visible only after the server accepts the connected wallet.
+        </p>
 
         <dl className="request-details">
           <div><dt>Network</dt><dd><span className="network-icon">T</span> TRON Mainnet</dd></div>
-          <div><dt>Asset</dt><dd>USDT <small>TRC20</small></dd></div>
-          <div><dt>Amount</dt><dd className="amount">35,000 <small>USDT</small></dd></div>
-          <div><dt>Receiver vault</dt><dd className="mono">TEq6bX...WqLA3Cy</dd></div>
-          <div><dt>Reference</dt><dd className="mono">AUTH-35000-TRC20</dd></div>
+          <div><dt>Asset</dt><dd>{requestDetails?.asset || 'TRC20 asset'}</dd></div>
+          <div>
+            <dt>Amount</dt>
+            <dd className={requestDetails ? 'amount' : 'locked-value'}>
+              {requestDetails ? <>{displayAmount(requestDetails.amount)} <small>{requestDetails.asset}</small></> : 'LOCKED'}
+            </dd>
+          </div>
+          <div>
+            <dt>Receiver</dt>
+            <dd className={requestDetails ? 'mono' : 'locked-value'}>
+              {requestDetails ? shortenAddress(requestDetails.receiverWallet) : 'LOCKED'}
+            </dd>
+          </div>
+          <div><dt>Signature policy</dt><dd>One verified signature</dd></div>
+          {requestDetails && <div><dt>Reference</dt><dd className="mono">{requestDetails.reference}</dd></div>}
         </dl>
       </section>
 
       <section className="wallet-panel">
-        <span className="section-label">AUTHORIZED WALLET</span>
-        <h2>Connect to continue</h2>
-        <p className="section-copy">Select the wallet that holds the designated TRON account.</p>
+        <span className="section-label">WALLET ELIGIBILITY</span>
+        <h2>Connect securely</h2>
+        <p className="section-copy">Only a configured wallet can unlock its request and sign once.</p>
 
         <div className="wallet-options">
           <button
@@ -329,11 +296,11 @@ export default function WalletVerification() {
         {challenge && phase === 'ready' && (
           <div className="signing-box">
             <details>
-              <summary>Review one-time message</summary>
+              <summary>Review single-use message</summary>
               <pre>{challenge.displayMessage}</pre>
             </details>
             <button className="sign-button" type="button" onClick={signChallenge}>
-              Sign authorization message <span>→</span>
+              Sign once and continue <span>→</span>
             </button>
             <small>Expires at {new Date(challenge.expiresAt).toLocaleTimeString('en-US')}</small>
           </div>
@@ -341,7 +308,10 @@ export default function WalletVerification() {
 
         <div className="security-note">
           <span>◆</span>
-          <p><strong>Message signature only.</strong> This step does not expose your private key and does not by itself broadcast a transaction.</p>
+          <p>
+            <strong>One message signature only.</strong> The server rejects every later signing attempt from the same wallet.
+            A network transaction is reported only after a real broadcast and TXID.
+          </p>
         </div>
       </section>
     </div>

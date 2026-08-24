@@ -1,6 +1,7 @@
 import {
   getActiveChallenge,
-  getAuthorizedWallet,
+  ensureAuthorizationRecord,
+  getAuthorizedRequest,
   getVerification,
   insertChallenge,
 } from '@/db/repository';
@@ -10,13 +11,24 @@ export const runtime = 'edge';
 
 type ChallengeRequest = { walletAddress?: unknown };
 
+function requestDetails(request: NonNullable<Awaited<ReturnType<typeof getAuthorizedRequest>>>) {
+  return {
+    amount: request.amount,
+    asset: request.asset,
+    receiverWallet: request.receiver_wallet,
+    reference: request.request_reference,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ChallengeRequest;
     const walletAddress = typeof body.walletAddress === 'string' ? body.walletAddress.trim() : '';
-    const authorizedWallet = await getAuthorizedWallet();
+    const authorizedRequest = isValidTronAddress(walletAddress)
+      ? await getAuthorizedRequest(walletAddress)
+      : null;
 
-    if (!isValidTronAddress(walletAddress) || walletAddress !== authorizedWallet) {
+    if (!isValidTronAddress(walletAddress) || !authorizedRequest) {
       return Response.json(
         { error: 'Wallet authorization failed. Review the connected account and try again.' },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
@@ -25,8 +37,14 @@ export async function POST(request: Request) {
 
     const existingVerification = await getVerification(walletAddress);
     if (existingVerification) {
+      const record = await ensureAuthorizationRecord(walletAddress);
+      if (!record) throw new Error('Verified wallet record is unavailable.');
       return Response.json(
-        { alreadyVerified: true, verifiedAt: existingVerification.verified_at },
+        {
+          alreadyVerified: true,
+          verifiedAt: existingVerification.verified_at,
+          statusUrl: `/status/${record.public_id}`,
+        },
         { headers: { 'Cache-Control': 'no-store' } },
       );
     }
@@ -40,6 +58,7 @@ export async function POST(request: Request) {
           message: activeChallenge.message,
           displayMessage: activeChallenge.display_message,
           expiresAt: activeChallenge.expires_at,
+          request: requestDetails(authorizedRequest),
         },
         { headers: { 'Cache-Control': 'no-store' } },
       );
@@ -68,7 +87,13 @@ export async function POST(request: Request) {
     });
 
     return Response.json(
-      { id, message: signableMessage, displayMessage, expiresAt },
+      {
+        id,
+        message: signableMessage,
+        displayMessage,
+        expiresAt,
+        request: requestDetails(authorizedRequest),
+      },
       { status: 201, headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {

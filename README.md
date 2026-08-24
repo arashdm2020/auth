@@ -1,15 +1,22 @@
 # TRON Proof
 
-TRON Proof is a compact DApp interface for proving ownership of one configured TRON address with a one-time message signature. A message signature does not create, submit, or confirm a network transaction.
+TRON Proof is a compact DApp interface for proving ownership of configured TRON addresses with a single-use message signature. A message signature does not create, submit, or confirm a network transaction.
 
 ## Authorization flow
 
-1. The server reads the authorized public TRON address from trusted runtime configuration.
-2. Only that address can receive a five-minute signing challenge.
-3. TronLink or the official Trust Wallet TRON adapter requests explicit user approval.
-4. The server cryptographically recovers the signer address and compares it with the configured address.
-5. The challenge is consumed and only the signature hash and verification timestamp are stored in D1.
-6. The network settlement remains `validation_pending` until the main application submits a real transaction and records its TXID.
+1. The server reads one or more authorized public TRON addresses from trusted runtime configuration.
+2. The amount and receiving wallet remain hidden until a connected wallet is accepted.
+3. Only an active authorized address can receive a five-minute signing challenge.
+4. A unique database index permanently limits each address to one verified signature.
+5. TronLink or the official Trust Wallet TRON adapter requests explicit user approval.
+6. The server cryptographically recovers the signer address and compares it with the configured address.
+7. The challenge is consumed and only the signature hash and verification timestamp are stored in D1.
+8. The user is redirected to an opaque status URL with a six-hour processing target.
+9. Network submission is never reported until the main application stores a real TXID.
+
+## Operations view
+
+`/operations` is a lightweight restricted view of verified requests and their network status. Its API requires `ADMIN_ACCESS_TOKEN`; the token is entered as a password and is kept only in the current page memory. The base wallet defaults to `TRou4EavgzEMoBp3V93LNaaiKY3Y3Rg5Cx`, and its confirmed TRX and official TRC20-USDT balances are read server-side from TronGrid V1 API.
 
 ## Wallet support
 
@@ -18,7 +25,7 @@ TRON Proof is a compact DApp interface for proving ownership of one configured T
 
 ## Configuration
 
-Copy `.env.example` and set `AUTHORIZED_WALLET_ADDRESS` to the permitted public TRON address. Never place a private key or recovery phrase in project files, hosting configuration, or the database.
+Copy `.env.example` and set `AUTHORIZED_WALLET_ADDRESS`, amount details, `BASE_WALLET_ADDRESS`, and a long random `ADMIN_ACCESS_TOKEN`. Use `AUTHORIZED_WALLETS_JSON` when multiple wallets must be configured. Production TronGrid traffic should include `TRONGRID_API_KEY`. Never place a private key or recovery phrase in project files, hosting configuration, or the database.
 
 ## Local development
 

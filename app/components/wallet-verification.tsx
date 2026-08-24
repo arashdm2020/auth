@@ -20,6 +20,9 @@ type TronWindow = Window & {
   tron?: TronProvider;
   tronLink?: TronProvider;
   tronWeb?: TronWebLike;
+  trustwallet?: {
+    tronLink?: TronProvider;
+  };
 };
 type WalletKind = 'tronlink' | 'trust';
 type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'redirecting' | 'error';
@@ -59,6 +62,35 @@ function getTronLink() {
   const provider = modernProvider || legacyProvider;
   const tronWeb = provider?.tronWeb || walletWindow.tronWeb;
   return { provider, tronWeb, isLegacy: !modernProvider && Boolean(legacyProvider) };
+}
+
+function getTrustWallet() {
+  const walletWindow = window as TronWindow;
+  const provider = walletWindow.trustwallet?.tronLink;
+  const tronWeb = provider?.tronWeb || walletWindow.tronWeb;
+  return { provider, tronWeb };
+}
+
+function isMobileBrowser() {
+  return /Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent);
+}
+
+function isTrustBrowser() {
+  return /Trust/i.test(window.navigator.userAgent) || Boolean((window as TronWindow).trustwallet?.tronLink);
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForTrustAddress(adapter: TrustAdapter) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const { tronWeb } = getTrustWallet();
+    const address = tronWeb?.defaultAddress?.base58 || adapter.address || '';
+    if (address) return address;
+    await wait(200);
+  }
+  return '';
 }
 
 function shortenAddress(address: string) {
@@ -165,8 +197,20 @@ export default function WalletVerification() {
     try {
       let address = '';
       if (kind === 'trust') {
-        await trustAdapter.connect();
-        address = trustAdapter.address || '';
+        const trustWallet = getTrustWallet();
+        if (!trustWallet.provider && isMobileBrowser() && !isTrustBrowser()) {
+          window.location.href = `https://link.trustwallet.com/open_url?url=${encodeURIComponent(window.location.href)}`;
+          setMessage('Opening this DApp inside Trust Wallet. After it opens, tap Trust Wallet again.');
+          return;
+        }
+
+        if (trustWallet.provider) {
+          await trustWallet.provider.request({ method: 'tron_requestAccounts' });
+          address = await waitForTrustAddress(trustAdapter);
+        } else {
+          await trustAdapter.connect();
+          address = await waitForTrustAddress(trustAdapter);
+        }
       } else {
         const wallet = getTronLink();
         if (!wallet.provider) throw new Error('TronLink was not detected. Install it or open this DApp inside TronLink.');
@@ -178,7 +222,13 @@ export default function WalletVerification() {
         address = refreshedWallet.tronWeb?.defaultAddress?.base58 || responseAddress;
       }
 
-      if (!address) throw new Error('The wallet did not provide an active TRON account.');
+      if (!address) {
+        throw new Error(
+          kind === 'trust'
+            ? 'Trust Wallet did not provide a TRON account. Open this page inside Trust Wallet DApp Browser and select a TRON wallet.'
+            : 'The wallet did not provide an active TRON account.',
+        );
+      }
       setConnectedWallet(address);
       await requestChallenge(address);
     } catch (error) {
@@ -196,7 +246,12 @@ export default function WalletVerification() {
       let signature = '';
 
       if (walletKind === 'trust') {
-        signature = await trustAdapter.signMessage(challenge.message);
+        const { tronWeb } = getTrustWallet();
+        if (tronWeb?.trx?.signMessageV2) {
+          signature = await tronWeb.trx.signMessageV2(challenge.message);
+        } else {
+          signature = await trustAdapter.signMessage(challenge.message);
+        }
       } else {
         const { tronWeb } = getTronLink();
         if (!tronWeb) throw new Error('The TronLink connection is no longer available.');

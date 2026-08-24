@@ -68,6 +68,8 @@ export default function OperationsPanel() {
   const [saveMessage, setSaveMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingWallet, setDeletingWallet] = useState('');
+  const [editingWallet, setEditingWallet] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [asset, setAsset] = useState('USDT');
@@ -94,7 +96,7 @@ export default function OperationsPanel() {
     }
   }
 
-  async function addAuthorizedWallet(event: FormEvent) {
+  async function saveAuthorizedWallet(event: FormEvent) {
     event.preventDefault();
     if (!token || saving) return;
     setSaving(true);
@@ -102,13 +104,14 @@ export default function OperationsPanel() {
     setSaveMessage('');
     try {
       const response = await fetch('/api/authorized-wallets', {
-        method: 'POST',
+        method: editingWallet ? 'PATCH' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         cache: 'no-store',
         body: JSON.stringify({
+          originalWalletAddress: editingWallet,
           walletAddress,
           amount,
           asset,
@@ -121,12 +124,65 @@ export default function OperationsPanel() {
       setAmount('');
       setAsset('USDT');
       setReference('');
-      setSaveMessage('Authorized wallet saved.');
+      setEditingWallet(null);
+      setSaveMessage(editingWallet ? 'Authorized wallet updated.' : 'Authorized wallet saved.');
       await load();
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : 'Authorized wallet could not be saved.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEditing(wallet: AuthorizedWallet) {
+    if (wallet.signedAt) return;
+    setEditingWallet(wallet.wallet);
+    setWalletAddress(wallet.wallet);
+    setAmount(wallet.amount);
+    setAsset(wallet.asset);
+    setReference(wallet.requestReference);
+    setSaveError('');
+    setSaveMessage('Editing selected authorization.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEditing() {
+    setEditingWallet(null);
+    setWalletAddress('');
+    setAmount('');
+    setAsset('USDT');
+    setReference('');
+    setSaveError('');
+    setSaveMessage('');
+  }
+
+  async function removeAuthorizedWallet(wallet: AuthorizedWallet) {
+    if (wallet.signedAt || deletingWallet) return;
+    const confirmed = window.confirm(`Delete authorization for ${wallet.wallet}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingWallet(wallet.wallet);
+    setSaveError('');
+    setSaveMessage('');
+    try {
+      const response = await fetch('/api/authorized-wallets', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({ walletAddress: wallet.wallet }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Authorized wallet could not be deleted.');
+      if (editingWallet === wallet.wallet) cancelEditing();
+      setSaveMessage('Authorized wallet deleted.');
+      await load();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Authorized wallet could not be deleted.');
+    } finally {
+      setDeletingWallet('');
     }
   }
 
@@ -173,10 +229,10 @@ export default function OperationsPanel() {
       </section>
 
       <section className="authorization-manager">
-        <form className="wallet-auth-form" onSubmit={addAuthorizedWallet}>
+        <form className="wallet-auth-form" onSubmit={saveAuthorizedWallet}>
           <div className="form-heading">
-            <span className="section-label">NEW ONE-TIME AUTHORIZATION</span>
-            <h2>Add signing permission</h2>
+            <span className="section-label">{editingWallet ? 'EDIT AUTHORIZATION' : 'NEW ONE-TIME AUTHORIZATION'}</span>
+            <h2>{editingWallet ? 'Update signing permission' : 'Add signing permission'}</h2>
           </div>
           <label>
             Wallet address
@@ -196,7 +252,12 @@ export default function OperationsPanel() {
           </label>
           {saveError && <div className="gate-error" role="alert">{saveError}</div>}
           {saveMessage && <div className="save-message" role="status">{saveMessage}</div>}
-          <button type="submit" disabled={saving || !walletAddress || !amount}>{saving ? 'Saving…' : 'Authorize wallet once'}</button>
+          <div className="wallet-form-actions">
+            <button type="submit" disabled={saving || !walletAddress || !amount}>
+              {saving ? 'Saving…' : editingWallet ? 'Save changes' : 'Authorize wallet once'}
+            </button>
+            {editingWallet && <button className="cancel-edit" type="button" onClick={cancelEditing} disabled={saving}>Cancel edit</button>}
+          </div>
         </form>
 
         <section className="records-card authorized-card">
@@ -207,7 +268,7 @@ export default function OperationsPanel() {
           <div className="operations-table-wrap">
             <table className="operations-table">
               <thead>
-                <tr><th>Authorized wallet</th><th>Amount</th><th>Sender</th><th>Reference</th><th>State</th><th>Updated</th></tr>
+                <tr><th>Authorized wallet</th><th>Amount</th><th>Sender</th><th>Reference</th><th>State</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {data.authorizedWallets.length === 0 ? (
@@ -219,7 +280,23 @@ export default function OperationsPanel() {
                     <td className="mono" title={wallet.senderWallet}>{compactAddress(wallet.senderWallet)}</td>
                     <td>{wallet.requestReference}</td>
                     <td><span className={`operation-state ${wallet.signedAt ? 'state-credited' : 'state-awaiting_broadcast'}`}>{wallet.signedAt ? 'Used' : 'Ready once'}</span></td>
-                    <td>{new Date(wallet.updatedAt).toLocaleString('en-US')}</td>
+                    <td className="wallet-row-actions">
+                      {wallet.signedAt ? (
+                        <span className="locked-action" title="Signed records are preserved as an audit trail">Locked</span>
+                      ) : (
+                        <>
+                          <button type="button" onClick={() => startEditing(wallet)} disabled={saving || Boolean(deletingWallet)}>Edit</button>
+                          <button
+                            className="delete-wallet"
+                            type="button"
+                            onClick={() => removeAuthorizedWallet(wallet)}
+                            disabled={saving || Boolean(deletingWallet)}
+                          >
+                            {deletingWallet === wallet.wallet ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

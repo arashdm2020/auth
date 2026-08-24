@@ -1,6 +1,5 @@
-import { neon, type NeonQueryFunctionInTransaction } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import {
-  getConfiguredWalletRequests,
   PROCESSING_WINDOW_MS,
   type ConfiguredWalletRequest,
 } from '@/lib/runtime-config';
@@ -189,35 +188,6 @@ function authorizationStatusRow(row: Record<string, unknown>): AuthorizationStat
   };
 }
 
-function configuredWalletQuery(
-  sql: NeonQueryFunctionInTransaction<boolean, boolean>,
-  request: ConfiguredWalletRequest,
-  now: number,
-) {
-  return sql.query(
-    `
-      INSERT INTO authorized_wallets (
-        wallet_address, amount, asset, receiver_wallet, request_reference, active, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, 1, $6, $6)
-      ON CONFLICT (wallet_address) DO UPDATE SET
-        amount = EXCLUDED.amount,
-        asset = EXCLUDED.asset,
-        receiver_wallet = EXCLUDED.receiver_wallet,
-        request_reference = EXCLUDED.request_reference,
-        active = 1,
-        updated_at = EXCLUDED.updated_at
-    `,
-    [
-      request.walletAddress,
-      request.amount,
-      request.asset,
-      request.receiverWallet,
-      request.requestReference,
-      now,
-    ],
-  );
-}
-
 async function initializeDatabase() {
   const sql = getDatabase();
 
@@ -288,11 +258,6 @@ async function initializeDatabase() {
     `),
   ]);
 
-  const now = Date.now();
-  const configuredRequests = getConfiguredWalletRequests();
-  await sql.transaction((transaction) => [
-    ...configuredRequests.map((request) => configuredWalletQuery(transaction, request, now)),
-  ]);
 }
 
 export async function ensureDatabase() {
@@ -369,6 +334,94 @@ export async function upsertAuthorizedWallet(request: ConfiguredWalletRequest): 
   const row = (await listAuthorizedWallets()).find((wallet) => wallet.wallet_address === request.walletAddress);
   if (!row) throw new Error('Authorized wallet could not be saved.');
   return row;
+}
+
+export async function updateAuthorizedWallet(
+  originalWalletAddress: string,
+  request: ConfiguredWalletRequest,
+): Promise<AuthorizedWalletAdminRow> {
+  await ensureDatabase();
+
+  const original = await getAuthorizedRequest(originalWalletAddress);
+  if (!original) throw new Error('Authorized wallet was not found.');
+  if (await getVerification(originalWalletAddress)) {
+    throw new Error('Used wallet authorizations cannot be edited.');
+  }
+
+  if (request.walletAddress !== originalWalletAddress) {
+    const [targetRequest, targetVerification] = await Promise.all([
+      getAuthorizedRequest(request.walletAddress),
+      getVerification(request.walletAddress),
+    ]);
+    if (targetRequest || targetVerification) {
+      throw new Error('The replacement wallet already has an authorization record.');
+    }
+  }
+
+  const now = Date.now();
+  await getDatabase().transaction((transaction) => [
+    transaction.query(
+      `DELETE FROM signature_challenges WHERE wallet_address = $1 AND used_at IS NULL`,
+      [originalWalletAddress],
+    ),
+    transaction.query(
+      `
+        UPDATE authorized_wallets
+        SET wallet_address = $1,
+            amount = $2,
+            asset = $3,
+            receiver_wallet = $4,
+            request_reference = $5,
+            active = 1,
+            updated_at = $6
+        WHERE wallet_address = $7
+          AND NOT EXISTS (
+            SELECT 1 FROM verified_signatures WHERE wallet_address = $7
+          )
+      `,
+      [
+        request.walletAddress,
+        request.amount,
+        request.asset,
+        request.receiverWallet,
+        request.requestReference,
+        now,
+        originalWalletAddress,
+      ],
+    ),
+  ]);
+
+  const row = (await listAuthorizedWallets()).find((wallet) => wallet.wallet_address === request.walletAddress);
+  if (!row) throw new Error('Authorized wallet could not be updated.');
+  return row;
+}
+
+export async function deleteAuthorizedWallet(walletAddress: string): Promise<void> {
+  await ensureDatabase();
+  if (await getVerification(walletAddress)) {
+    throw new Error('Used wallet authorizations cannot be deleted.');
+  }
+
+  const rows = await getDatabase().transaction((transaction) => [
+    transaction.query(
+      `DELETE FROM signature_challenges WHERE wallet_address = $1 AND used_at IS NULL`,
+      [walletAddress],
+    ),
+    transaction.query(
+      `
+        DELETE FROM authorized_wallets
+        WHERE wallet_address = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM verified_signatures WHERE wallet_address = $1
+          )
+        RETURNING wallet_address
+      `,
+      [walletAddress],
+    ),
+  ]);
+
+  const deleted = rows[1] as QueryRows;
+  if (!firstRow(deleted)) throw new Error('Authorized wallet was not found.');
 }
 
 export async function getVerification(walletAddress: string): Promise<VerificationRow | null> {

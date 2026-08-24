@@ -366,12 +366,22 @@ a { color: inherit; }
 .wallet-auth-form input:focus { border-color: rgba(235, 16, 40, .65); box-shadow: 0 0 0 3px rgba(235, 16, 40, .08); }
 .wallet-auth-form button { width: 100%; min-height: 44px; margin-top: 16px; border: 0; border-radius: 10px; background: var(--red); color: #fff; cursor: pointer; font-size: 10px; font-weight: 800; }
 .wallet-auth-form button:disabled { cursor: wait; opacity: .55; }
+.wallet-form-actions { display: grid; gap: 8px; margin-top: 16px; }
+.wallet-form-actions > button { margin-top: 0; }
+.wallet-form-actions .cancel-edit { margin-top: 0; border: 1px solid var(--line-strong); background: #1a1f29; color: #aeb6c4; }
 .save-message { margin-top: 12px; color: #89d9b8; font-size: 10px; }
 .authorized-card { min-width: 0; }
 .records-heading p { margin: 0; color: #687182; font-size: 9px; }
 .operations-table td { max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
 .operations-table a { color: #e0e4eb; text-decoration: none; }
 .operations-table a:hover { color: #fff; text-decoration: underline; }
+.wallet-row-actions { display: flex; align-items: center; gap: 7px; overflow: visible !important; }
+.wallet-row-actions button { min-height: 30px; padding: 0 10px; border: 1px solid #353c49; border-radius: 8px; background: #1a1f29; color: #c3cad5; cursor: pointer; font-size: 8px; font-weight: 800; }
+.wallet-row-actions button:hover { border-color: #555e6d; background: #222833; color: #fff; }
+.wallet-row-actions .delete-wallet { border-color: rgba(235, 16, 40, .3); background: rgba(235, 16, 40, .07); color: #ec8995; }
+.wallet-row-actions .delete-wallet:hover { border-color: rgba(235, 16, 40, .65); background: rgba(235, 16, 40, .13); }
+.wallet-row-actions button:disabled { cursor: wait; opacity: .45; }
+.locked-action { color: #646d7d; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .empty-row { height: 90px; color: #616a7b !important; text-align: center; }
 
 @media (max-width: 760px) {

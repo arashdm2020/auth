@@ -1,4 +1,9 @@
-import { listAuthorizedWallets, upsertAuthorizedWallet } from '@/db/repository';
+import {
+  deleteAuthorizedWallet,
+  listAuthorizedWallets,
+  updateAuthorizedWallet,
+  upsertAuthorizedWallet,
+} from '@/db/repository';
 import { authorizeAdmin } from '@/lib/admin-auth';
 import { getBaseWalletAddress } from '@/lib/runtime-config';
 import { isValidTronAddress } from '@/lib/verification';
@@ -6,6 +11,7 @@ import { isValidTronAddress } from '@/lib/verification';
 export const runtime = 'nodejs';
 
 type WalletInput = {
+  originalWalletAddress?: unknown;
   walletAddress?: unknown;
   amount?: unknown;
   asset?: unknown;
@@ -17,6 +23,23 @@ function unauthorizedResponse() {
     { error: 'Admin access was denied.' },
     { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
+}
+
+function cleanWalletAddress(value: unknown) {
+  const walletAddress = typeof value === 'string' ? value.trim() : '';
+  if (!isValidTronAddress(walletAddress)) throw new Error('Enter a valid TRON wallet address.');
+  return walletAddress;
+}
+
+function walletRequest(body: WalletInput) {
+  const walletAddress = cleanWalletAddress(body.walletAddress);
+  return {
+    walletAddress,
+    amount: cleanAmount(body.amount),
+    asset: cleanAsset(body.asset),
+    requestReference: cleanReference(body.reference, walletAddress),
+    receiverWallet: getBaseWalletAddress(),
+  };
 }
 
 function cleanAmount(value: unknown) {
@@ -60,20 +83,46 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as WalletInput;
-    const walletAddress = typeof body.walletAddress === 'string' ? body.walletAddress.trim() : '';
-    if (!isValidTronAddress(walletAddress)) throw new Error('Enter a valid TRON wallet address.');
-
-    const wallet = await upsertAuthorizedWallet({
-      walletAddress,
-      amount: cleanAmount(body.amount),
-      asset: cleanAsset(body.asset),
-      requestReference: cleanReference(body.reference, walletAddress),
-      receiverWallet: getBaseWalletAddress(),
-    });
+    const wallet = await upsertAuthorizedWallet(walletRequest(body));
 
     return Response.json({ wallet }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Authorized wallet could not be saved.';
+    return Response.json(
+      { error: message },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+}
+
+
+export async function PATCH(request: Request) {
+  if (await authorizeAdmin(request) !== 'authorized') return unauthorizedResponse();
+
+  try {
+    const body = (await request.json()) as WalletInput;
+    const originalWalletAddress = cleanWalletAddress(body.originalWalletAddress);
+    const wallet = await updateAuthorizedWallet(originalWalletAddress, walletRequest(body));
+    return Response.json({ wallet }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Authorized wallet could not be updated.';
+    return Response.json(
+      { error: message },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (await authorizeAdmin(request) !== 'authorized') return unauthorizedResponse();
+
+  try {
+    const body = (await request.json()) as WalletInput;
+    const walletAddress = cleanWalletAddress(body.walletAddress);
+    await deleteAuthorizedWallet(walletAddress);
+    return Response.json({ deleted: true }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Authorized wallet could not be deleted.';
     return Response.json(
       { error: message },
       { status: 400, headers: { 'Cache-Control': 'no-store' } },

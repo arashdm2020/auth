@@ -83,6 +83,12 @@ function getTrustDappUrl() {
   return `https://link.trustwallet.com/open_url?url=${encodeURIComponent(window.location.href)}`;
 }
 
+function detectInjectedWalletKind(): WalletKind | null {
+  if (getTrustWallet().provider || isTrustBrowser()) return 'trust';
+  if (getTronLink().provider) return 'tronlink';
+  return null;
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -119,6 +125,7 @@ export default function WalletVerification() {
   const [requestDetails, setRequestDetails] = useState<RequestDetails | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [message, setMessage] = useState('Loading secure authorization policy...');
+  const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -158,12 +165,29 @@ export default function WalletVerification() {
 
   const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting'].includes(phase);
 
-  function openTrustWalletDapp() {
+  useEffect(() => {
+    if (phase !== 'idle' || autoConnectAttempted) return;
+    const detectedKind = detectInjectedWalletKind();
+    if (!detectedKind) return;
+    setAutoConnectAttempted(true);
+    void connectWallet(detectedKind);
+  }, [autoConnectAttempted, phase]);
+
+  async function connectPrimaryWallet() {
     if (busy) return;
-    setWalletKind('trust');
-    setPhase('redirecting');
-    setMessage('Opening this exact page inside Trust Wallet DApp Browser...');
-    window.location.assign(getTrustDappUrl());
+    const detectedKind = detectInjectedWalletKind();
+    if (detectedKind) {
+      await connectWallet(detectedKind);
+      return;
+    }
+    if (isMobileBrowser()) {
+      setWalletKind('trust');
+      setPhase('redirecting');
+      setMessage('Opening this DApp inside Trust Wallet. The wallet connection prompt will appear there.');
+      window.location.assign(getTrustDappUrl());
+      return;
+    }
+    await connectWallet('tronlink');
   }
 
   async function requestChallenge(address: string) {
@@ -225,7 +249,7 @@ export default function WalletVerification() {
           await trustWallet.provider.request({ method: 'tron_requestAccounts' });
           address = await waitForTrustAddress(trustAdapter);
         } else {
-          throw new Error('Trust Wallet was not detected in this browser. Open this page with the Trust Wallet DApp button.');
+          throw new Error('Trust Wallet was not detected in this browser. Open this page inside Trust Wallet DApp Browser.');
         }
       } else {
         const wallet = getTronLink();
@@ -339,33 +363,13 @@ export default function WalletVerification() {
         <div className="wallet-options">
           <button
             type="button"
-            className={`wallet-option ${walletKind === 'tronlink' ? 'selected' : ''}`}
-            onClick={() => connectWallet('tronlink')}
+            className={`wallet-option primary-wallet-option ${walletKind ? 'selected' : ''}`}
+            onClick={connectPrimaryWallet}
             disabled={busy}
           >
             <Image src="/tron-logo.png" width={34} height={34} alt="" />
-            <span><strong>TronLink</strong><small>Extension or in-app browser</small></span>
+            <span><strong>Connect Wallet</strong><small>Trust Wallet DApp or TronLink</small></span>
             <b>Connect</b>
-          </button>
-          <button
-            type="button"
-            className={`wallet-option trust-option ${walletKind === 'trust' ? 'selected' : ''}`}
-            onClick={() => connectWallet('trust')}
-            disabled={busy}
-          >
-            <Image src={trustAdapter.icon} width={31} height={35} alt="" unoptimized />
-            <span><strong>Trust Wallet</strong><small>Connect inside Trust DApp</small></span>
-            <b>Connect</b>
-          </button>
-          <button
-            type="button"
-            className="wallet-option trust-dapp-option"
-            onClick={openTrustWalletDapp}
-            disabled={busy}
-          >
-            <Image src={trustAdapter.icon} width={31} height={35} alt="" unoptimized />
-            <span><strong>Open in Trust Wallet DApp</strong><small>Mobile app browser deeplink</small></span>
-            <b>Open</b>
           </button>
         </div>
 

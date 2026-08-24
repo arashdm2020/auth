@@ -1,8 +1,9 @@
 import {
+  createAuthorizedWallet,
   deleteAuthorizedWallet,
   listAuthorizedWallets,
+  setAuthorizedWalletBlock,
   updateAuthorizedWallet,
-  upsertAuthorizedWallet,
 } from '@/db/repository';
 import { authorizeAdmin } from '@/lib/admin-auth';
 import { getBaseWalletAddress } from '@/lib/runtime-config';
@@ -97,11 +98,29 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as WalletInput;
-    const wallet = await upsertAuthorizedWallet(walletRequest(body));
+    const wallet = await createAuthorizedWallet(walletRequest(body));
 
     return Response.json({ wallet }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Authorized wallet could not be saved.';
+    return Response.json(
+      { error: message },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  if (await authorizeAdmin(request) !== 'authorized') return unauthorizedResponse();
+
+  try {
+    const body = (await request.json()) as WalletInput;
+    const walletAddress = cleanWalletAddress(body.walletAddress);
+    const blockedUntil = cleanBlockedUntil(body.blockEnabled, body.blockHours);
+    const wallet = await setAuthorizedWalletBlock(walletAddress, blockedUntil);
+    return Response.json({ wallet }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Wallet lock could not be updated.';
     return Response.json(
       { error: message },
       { status: 400, headers: { 'Cache-Control': 'no-store' } },

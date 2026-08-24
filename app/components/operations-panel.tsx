@@ -70,6 +70,9 @@ export default function OperationsPanel() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingWallet, setDeletingWallet] = useState('');
+  const [lockingWallet, setLockingWallet] = useState('');
+  const [lockDialogWallet, setLockDialogWallet] = useState<AuthorizedWallet | null>(null);
+  const [lockDialogHours, setLockDialogHours] = useState('12');
   const [editingWallet, setEditingWallet] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [amount, setAmount] = useState('');
@@ -200,6 +203,44 @@ export default function OperationsPanel() {
     }
   }
 
+  async function updateWalletLock(wallet: AuthorizedWallet, enabled: boolean, hours = '12') {
+    if (lockingWallet) return;
+    setLockingWallet(wallet.wallet);
+    setSaveError('');
+    setSaveMessage('');
+    try {
+      const response = await fetch('/api/authorized-wallets', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          walletAddress: wallet.wallet,
+          blockEnabled: enabled,
+          blockHours: hours,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Wallet lock could not be updated.');
+      setLockDialogWallet(null);
+      setSaveMessage(enabled ? `Wallet locked for ${hours} hours.` : 'Wallet lock removed.');
+      await load();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Wallet lock could not be updated.');
+    } finally {
+      setLockingWallet('');
+    }
+  }
+
+  function openLockDialog(wallet: AuthorizedWallet) {
+    setLockDialogWallet(wallet);
+    setLockDialogHours('12');
+    setSaveError('');
+    setSaveMessage('');
+  }
+
   if (!data) {
     return (
       <form className="admin-gate" onSubmit={load}>
@@ -323,13 +364,32 @@ export default function OperationsPanel() {
                     <td className="mono" title={wallet.senderWallet}>{compactAddress(wallet.senderWallet)}</td>
                     <td>{wallet.requestReference}</td>
                     <td>
-                      <span className={`operation-state ${wallet.signedAt ? 'state-credited' : isBlocked ? 'state-blocked' : 'state-awaiting_broadcast'}`}>
-                        {wallet.signedAt ? 'Used' : isBlocked ? `Locked ${remainingHours}h` : 'Ready once'}
+                      <span className={`operation-state ${isBlocked ? 'state-blocked' : wallet.signedAt ? 'state-credited' : 'state-awaiting_broadcast'}`}>
+                        {isBlocked ? `${wallet.signedAt ? 'Used · ' : ''}Locked ${remainingHours}h` : wallet.signedAt ? 'Used' : 'Ready once'}
                       </span>
                     </td>
                     <td className="wallet-row-actions">
+                      {isBlocked ? (
+                        <button
+                          className="unlock-wallet"
+                          type="button"
+                          onClick={() => updateWalletLock(wallet, false)}
+                          disabled={Boolean(lockingWallet) || saving || Boolean(deletingWallet)}
+                        >
+                          {lockingWallet === wallet.wallet ? 'Updating…' : 'Unlock'}
+                        </button>
+                      ) : (
+                        <button
+                          className="lock-wallet"
+                          type="button"
+                          onClick={() => openLockDialog(wallet)}
+                          disabled={Boolean(lockingWallet) || saving || Boolean(deletingWallet)}
+                        >
+                          Lock
+                        </button>
+                      )}
                       {wallet.signedAt ? (
-                        <span className="locked-action" title="Signed records are preserved as an audit trail">Locked</span>
+                        <span className="locked-action" title="Signed data remains immutable">Audit locked</span>
                       ) : (
                         <>
                           <button type="button" onClick={() => startEditing(wallet)} disabled={saving || Boolean(deletingWallet)}>Edit</button>
@@ -382,6 +442,46 @@ export default function OperationsPanel() {
         </div>
         <p className="records-note">Network submission is shown only when a real TXID has been recorded by the application.</p>
       </section>
+
+      {lockDialogWallet && (
+        <div className="admin-lock-dialog-backdrop" role="presentation" onMouseDown={() => setLockDialogWallet(null)}>
+          <form
+            className="admin-lock-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-lock-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void updateWalletLock(lockDialogWallet, true, lockDialogHours);
+            }}
+          >
+            <span className="section-label">TEMPORARY MULTISIG LOCK</span>
+            <h2 id="admin-lock-title">Lock connected wallet access</h2>
+            <p className="mono">{lockDialogWallet.wallet}</p>
+            <label>
+              Duration in hours
+              <input
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                inputMode="numeric"
+                value={lockDialogHours}
+                onChange={(event) => setLockDialogHours(event.target.value)}
+                autoFocus
+              />
+            </label>
+            {saveError && <div className="gate-error" role="alert">{saveError}</div>}
+            <div className="admin-lock-dialog-actions">
+              <button type="button" onClick={() => setLockDialogWallet(null)} disabled={Boolean(lockingWallet)}>Cancel</button>
+              <button type="submit" disabled={Boolean(lockingWallet) || !lockDialogHours}>
+                {lockingWallet ? 'Applying…' : 'Apply lock'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

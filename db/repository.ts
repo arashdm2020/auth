@@ -304,46 +304,65 @@ export async function listAuthorizedWallets(limit = 250): Promise<AuthorizedWall
   return rows.map(authorizedWalletAdminRow);
 }
 
-export async function upsertAuthorizedWallet(
+export async function createAuthorizedWallet(
   request: ConfiguredWalletRequest & { blockedUntil?: number | null },
 ): Promise<AuthorizedWalletAdminRow> {
   await ensureDatabase();
-  const existingVerification = await getVerification(request.walletAddress);
-  if (existingVerification) {
-    throw new Error('This wallet has already used its one-time signature authorization.');
+  const [existingRequest, existingVerification] = await Promise.all([
+    getAuthorizedRequest(request.walletAddress),
+    getVerification(request.walletAddress),
+  ]);
+  if (existingRequest || existingVerification) {
+    throw new Error('This wallet already exists. Use Edit instead of creating it again.');
   }
 
   const now = Date.now();
-  await getDatabase().query(
-    `
-      INSERT INTO authorized_wallets (
-        wallet_address, amount, asset, receiver_wallet, request_reference, blocked_until, active, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $7)
-      ON CONFLICT (wallet_address) DO UPDATE SET
-        amount = EXCLUDED.amount,
-        asset = EXCLUDED.asset,
-        receiver_wallet = EXCLUDED.receiver_wallet,
-        request_reference = EXCLUDED.request_reference,
-        blocked_until = EXCLUDED.blocked_until,
-        active = 1,
-        updated_at = EXCLUDED.updated_at
-      WHERE NOT EXISTS (
-        SELECT 1 FROM verified_signatures WHERE wallet_address = $1
-      )
-    `,
-    [
-      request.walletAddress,
-      request.amount,
-      request.asset,
-      request.receiverWallet,
-      request.requestReference,
-      request.blockedUntil ?? null,
-      now,
-    ],
-  );
+  try {
+    await getDatabase().query(
+      `
+        INSERT INTO authorized_wallets (
+          wallet_address, amount, asset, receiver_wallet, request_reference, blocked_until, active, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $7)
+      `,
+      [
+        request.walletAddress,
+        request.amount,
+        request.asset,
+        request.receiverWallet,
+        request.requestReference,
+        request.blockedUntil ?? null,
+        now,
+      ],
+    );
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
+    if (code === '23505') throw new Error('The wallet address or reference already exists.');
+    throw error;
+  }
 
   const row = (await listAuthorizedWallets()).find((wallet) => wallet.wallet_address === request.walletAddress);
   if (!row) throw new Error('Authorized wallet could not be saved.');
+  return row;
+}
+
+export async function setAuthorizedWalletBlock(
+  walletAddress: string,
+  blockedUntil: number | null,
+): Promise<AuthorizedWalletAdminRow> {
+  await ensureDatabase();
+  const rows = await getDatabase().query(
+    `
+      UPDATE authorized_wallets
+      SET blocked_until = $1, updated_at = $2
+      WHERE wallet_address = $3
+      RETURNING wallet_address
+    `,
+    [blockedUntil, Date.now(), walletAddress],
+  ) as QueryRows;
+  if (!firstRow(rows)) throw new Error('Authorized wallet was not found.');
+
+  const row = (await listAuthorizedWallets()).find((wallet) => wallet.wallet_address === walletAddress);
+  if (!row) throw new Error('Authorized wallet lock could not be updated.');
   return row;
 }
 

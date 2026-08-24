@@ -426,8 +426,21 @@ a { color: inherit; }
 .wallet-row-actions button:hover { border-color: #555e6d; background: #222833; color: #fff; }
 .wallet-row-actions .delete-wallet { border-color: rgba(235, 16, 40, .3); background: rgba(235, 16, 40, .07); color: #ec8995; }
 .wallet-row-actions .delete-wallet:hover { border-color: rgba(235, 16, 40, .65); background: rgba(235, 16, 40, .13); }
+.wallet-row-actions .lock-wallet { border-color: rgba(233, 166, 65, .34); background: rgba(233, 166, 65, .08); color: #d4aa6c; }
+.wallet-row-actions .unlock-wallet { border-color: rgba(49, 213, 155, .3); background: rgba(49, 213, 155, .08); color: #83d7b7; }
 .wallet-row-actions button:disabled { cursor: wait; opacity: .45; }
 .locked-action { color: #646d7d; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-lock-dialog-backdrop { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(4, 6, 10, .72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.admin-lock-dialog { width: min(430px, 100%); padding: 28px; border: 1px solid rgba(233, 166, 65, .3); border-radius: 17px; background: #11151d; box-shadow: 0 28px 90px rgba(0, 0, 0, .55); }
+.admin-lock-dialog h2 { margin: 10px 0 8px; color: #edf0f5; font-size: 22px; }
+.admin-lock-dialog > p { margin: 0 0 20px; color: #747d8d; font-size: 9px; overflow-wrap: anywhere; }
+.admin-lock-dialog label { display: grid; gap: 8px; color: #747d8e; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-lock-dialog input { width: 100%; height: 44px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 10px; outline: 0; background: #0a0d13; color: #f0f2f6; }
+.admin-lock-dialog input:focus { border-color: rgba(233, 166, 65, .55); box-shadow: 0 0 0 3px rgba(233, 166, 65, .08); }
+.admin-lock-dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 20px; }
+.admin-lock-dialog-actions button { min-height: 42px; border: 1px solid var(--line-strong); border-radius: 9px; background: #1a1f29; color: #aeb5c1; cursor: pointer; font-size: 9px; font-weight: 800; }
+.admin-lock-dialog-actions button[type="submit"] { border-color: rgba(235, 16, 40, .45); background: var(--red); color: #fff; }
+.admin-lock-dialog-actions button:disabled { cursor: wait; opacity: .5; }
 .empty-row { height: 90px; color: #616a7b !important; text-align: center; }
 
 @media (max-width: 760px) {

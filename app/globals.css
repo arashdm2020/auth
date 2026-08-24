@@ -151,7 +151,30 @@ a { color: inherit; }
 .request-details .locked-value { color: #535c6c; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
 .network-icon { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; background: var(--red); color: #fff; font-size: 9px; }
 
-.wallet-options { display: grid; gap: 10px; margin-top: 28px; }
+.direct-tron-connect {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 30px;
+  padding: 16px;
+  border: 1px solid rgba(235, 16, 40, .55);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(235, 16, 40, .2), rgba(18, 22, 30, .98) 52%);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px rgba(235, 16, 40, .08), 0 12px 32px rgba(0, 0, 0, .18);
+}
+.direct-tron-connect:hover { border-color: rgba(255, 44, 67, .85); transform: translateY(-1px); }
+.direct-tron-connect:disabled { cursor: wait; opacity: .55; transform: none; }
+.direct-tron-connect > span { display: grid; gap: 5px; }
+.direct-tron-connect strong { font-size: 13px; }
+.direct-tron-connect small { color: #8e97a8; font-size: 9px; }
+.direct-tron-connect b { color: #f0a3ad; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.wallet-panel-heading { padding-top: 2px; }
+.wallet-options { display: grid; gap: 10px; margin-top: 24px; }
 .wallet-option {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;

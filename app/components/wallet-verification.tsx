@@ -98,12 +98,6 @@ function getTronLinkDappUrl() {
   return `tronlinkoutside://pull.activity?param=${encodeURIComponent(JSON.stringify(payload))}`;
 }
 
-function detectInjectedWalletKind(): WalletKind | null {
-  if (getTrustWallet().provider || isTrustBrowser()) return 'trust';
-  if (getTronLink().provider) return 'tronlink';
-  return null;
-}
-
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -112,6 +106,21 @@ async function waitForTrustAddress(adapter: TrustAdapter) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const { tronWeb } = getTrustWallet();
     const address = tronWeb?.defaultAddress?.base58 || adapter.address || '';
+    if (address) return address;
+    await wait(200);
+  }
+  return '';
+}
+
+function getInjectedTronAddress(provider?: TronProvider) {
+  const walletWindow = window as TronWindow;
+  const tronWeb = provider?.tronWeb || walletWindow.trustwallet?.tronLink?.tronWeb || walletWindow.tronWeb;
+  return (tronWeb && tronWeb.defaultAddress?.base58) || '';
+}
+
+async function waitForInjectedTronAddress(provider?: TronProvider) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const address = getInjectedTronAddress(provider);
     if (address) return address;
     await wait(200);
   }
@@ -140,7 +149,6 @@ export default function WalletVerification() {
   const [requestDetails, setRequestDetails] = useState<RequestDetails | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [message, setMessage] = useState('Loading secure authorization policy...');
-  const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -180,14 +188,6 @@ export default function WalletVerification() {
 
   const busy = ['loading', 'connecting', 'signing', 'verifying', 'redirecting'].includes(phase);
 
-  useEffect(() => {
-    if (phase !== 'idle' || autoConnectAttempted) return;
-    const detectedKind = detectInjectedWalletKind();
-    if (!detectedKind) return;
-    setAutoConnectAttempted(true);
-    void connectWallet(detectedKind);
-  }, [autoConnectAttempted, phase]);
-
   async function requestChallenge(address: string) {
     const response = await fetch('/api/challenge', {
       method: 'POST',
@@ -218,6 +218,46 @@ export default function WalletVerification() {
     setRequestDetails(data.request);
     setPhase('ready');
     setMessage('Wallet eligible. Review and sign the single-use authorization message.');
+  }
+
+  async function connectInjectedTronWallet() {
+    if (busy) return;
+
+    setChallenge(null);
+    setRequestDetails(null);
+    setPhase('connecting');
+    setMessage('Requesting the active TRON account from this DApp browser...');
+
+    try {
+      const walletWindow = window as TronWindow;
+      const trustProvider = walletWindow.trustwallet?.tronLink;
+      const provider = trustProvider || walletWindow.tron || walletWindow.tronLink;
+      const kind: WalletKind = trustProvider || isTrustBrowser() ? 'trust' : 'tronlink';
+      const existingAddress = getInjectedTronAddress(provider);
+
+      if (!provider && !existingAddress) {
+        throw new Error('No TRON wallet provider is available in this DApp browser. Use Trust Wallet or TronLink below.');
+      }
+
+      let responseAddress = '';
+      if (provider && !existingAddress) {
+        const method = kind === 'trust' || provider === walletWindow.tronLink
+          ? 'tron_requestAccounts'
+          : 'eth_requestAccounts';
+        const accounts = await provider.request({ method });
+        responseAddress = Array.isArray(accounts) && typeof accounts[0] === 'string' ? accounts[0] : '';
+      }
+
+      const address = existingAddress || responseAddress || await waitForInjectedTronAddress(provider);
+      if (!address) throw new Error('The DApp browser did not return an active TRON account.');
+
+      setWalletKind(kind);
+      setConnectedWallet(address);
+      await requestChallenge(address);
+    } catch (error) {
+      setPhase('error');
+      setMessage(error instanceof Error ? error.message : 'Unable to connect the active TRON wallet.');
+    }
   }
 
   async function connectWallet(kind: WalletKind) {
@@ -361,9 +401,25 @@ export default function WalletVerification() {
       </section>
 
       <section className="wallet-panel">
+        <button
+          type="button"
+          className="direct-tron-connect"
+          onClick={connectInjectedTronWallet}
+          disabled={busy}
+        >
+          <Image src="/tron-logo.png" width={38} height={38} alt="TRON" />
+          <span>
+            <strong>Connect TRON Wallet</strong>
+            <small>Use the active wallet in this DApp browser</small>
+          </span>
+          <b>Connect</b>
+        </button>
+
+        <div className="wallet-panel-heading">
         <span className="section-label">WALLET ELIGIBILITY</span>
         <h2>Connect securely</h2>
         <p className="section-copy">Only a configured wallet can unlock its request and sign once.</p>
+        </div>
 
         <div className="wallet-options">
           <button

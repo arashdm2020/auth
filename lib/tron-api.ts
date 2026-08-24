@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import { getBaseWalletAddress } from '@/lib/runtime-config';
 
 const SIX_DECIMAL_UNITS = 1_000_000n;
@@ -23,7 +22,7 @@ export type TronBalance = {
 
 export async function getBaseWalletBalance(): Promise<TronBalance> {
   const address = getBaseWalletAddress();
-  const baseUrl = (env.TRONGRID_BASE_URL?.trim() || 'https://api.trongrid.io').replace(/\/+$/, '');
+  const baseUrl = (process.env.TRONGRID_BASE_URL?.trim() || 'https://api.trongrid.io').replace(/\/+$/, '');
   const parsedUrl = new URL(baseUrl);
   if (parsedUrl.protocol !== 'https:') throw new Error('TRONGRID_BASE_URL must use HTTPS.');
 
@@ -31,7 +30,7 @@ export async function getBaseWalletBalance(): Promise<TronBalance> {
     Accept: 'application/json',
     'Content-Type': 'application/json',
   };
-  const apiKey = env.TRONGRID_API_KEY?.trim();
+  const apiKey = process.env.TRONGRID_API_KEY?.trim();
   if (apiKey) headers['TRON-PRO-API-KEY'] = apiKey;
 
   const response = await fetch(`${baseUrl}/v1/accounts/${address}?only_confirmed=true`, {

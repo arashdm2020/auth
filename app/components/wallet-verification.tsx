@@ -16,13 +16,11 @@ type TronProvider = {
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 };
 
-declare global {
-  interface Window {
-    tron?: TronProvider;
-    tronLink?: TronProvider;
-    tronWeb?: TronWebLike;
-  }
-}
+type TronWindow = Window & {
+  tron?: TronProvider;
+  tronLink?: TronProvider;
+  tronWeb?: TronWebLike;
+};
 type WalletKind = 'tronlink' | 'trust';
 type Phase = 'loading' | 'idle' | 'connecting' | 'ready' | 'signing' | 'verifying' | 'redirecting' | 'error';
 
@@ -54,10 +52,11 @@ async function readResponse<T>(response: Response): Promise<T> {
 }
 
 function getTronLink() {
-  const modernProvider = window.tron;
-  const legacyProvider = window.tronLink;
+  const walletWindow = window as TronWindow;
+  const modernProvider = walletWindow.tron;
+  const legacyProvider = walletWindow.tronLink;
   const provider = modernProvider || legacyProvider;
-  const tronWeb = provider?.tronWeb || window.tronWeb;
+  const tronWeb = provider?.tronWeb || walletWindow.tronWeb;
   return { provider, tronWeb, isLegacy: !modernProvider && Boolean(legacyProvider) };
 }
 

@@ -1,6 +1,6 @@
-declare namespace Cloudflare {
-  interface Env {
-    DB: D1Database;
+declare namespace NodeJS {
+  interface ProcessEnv {
+    DATABASE_URL?: string;
     AUTHORIZED_WALLET_ADDRESS?: string;
     AUTHORIZED_AMOUNT?: string;
     AUTHORIZED_ASSET?: string;

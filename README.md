@@ -1,13 +1,13 @@
 # TRON Proof
 
-TRON Proof is a compact DApp interface for proving ownership of configured TRON addresses with a single-use message signature. A message signature does not create, submit, or confirm a network transaction.
+TRON Proof is a compact Next.js DApp for proving ownership of configured TRON addresses with a single-use message signature. It is configured for Vercel and uses serverless Postgres for durable authorization records. A message signature does not create, submit, or confirm a network transaction.
 
 ## Authorization flow
 
 1. The server reads one or more authorized public TRON addresses from trusted runtime configuration.
 2. The amount and receiving wallet remain hidden until a connected wallet is accepted.
 3. Only an active authorized address can receive a five-minute signing challenge.
-4. A unique database index permanently limits each address to one verified signature.
+4. A unique Postgres constraint permanently limits each address to one verified signature.
 5. TronLink or the official Trust Wallet TRON adapter requests explicit user approval.
 6. The server cryptographically recovers the signer address and compares it with the configured address.
 7. The challenge is consumed and only the signature hash and verification timestamp are stored in D1.
@@ -25,7 +25,9 @@ TRON Proof is a compact DApp interface for proving ownership of configured TRON 
 
 ## Configuration
 
-Copy `.env.example` and set `AUTHORIZED_WALLET_ADDRESS`, amount details, `BASE_WALLET_ADDRESS`, and a long random `ADMIN_ACCESS_TOKEN`. Use `AUTHORIZED_WALLETS_JSON` when multiple wallets must be configured. Production TronGrid traffic should include `TRONGRID_API_KEY`. Never place a private key or recovery phrase in project files, hosting configuration, or the database.
+Connect a Neon Postgres integration to the Vercel project so it injects `DATABASE_URL`. Then set `AUTHORIZED_WALLET_ADDRESS`, amount details, `BASE_WALLET_ADDRESS`, and a long random `ADMIN_ACCESS_TOKEN`. Use `AUTHORIZED_WALLETS_JSON` when multiple wallets must be configured. Production TronGrid traffic should include `TRONGRID_API_KEY`. Never place a private key, database URL, API token, or recovery phrase in project files.
+
+The tables are created idempotently at runtime. Their reviewed Postgres definition is also stored at `db/postgres-schema.sql`.
 
 ## Local development
 
@@ -42,4 +44,4 @@ pnpm lint
 pnpm build
 ```
 
-The original HTML mockup is retained for reference at `legacy/index.sample.html`; its hardcoded sample TXID has been removed.
+The original HTML mockup is retained for reference at `legacy/index.sample.html`; its hardcoded sample TXID has been removed. The old `drizzle/` SQLite migrations remain as historical D1 artifacts and are not used by the Vercel runtime.

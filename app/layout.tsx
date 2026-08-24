@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
-const metadataOrigin = process.env.SITE_ORIGIN || 'http://localhost:3000';
+const vercelOrigin = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+const metadataOrigin = process.env.SITE_ORIGIN || (vercelOrigin ? `https://${vercelOrigin}` : 'http://localhost:3000');
 
 export const metadata: Metadata = {
   title: 'TRON Proof | Wallet Ownership Verification',
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

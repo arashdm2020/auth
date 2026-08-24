@@ -1,6 +1,6 @@
 import { getAuthorizationStatus } from '@/db/repository';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 function maskAddress(address: string) {
   return `${address.slice(0, 7)}…${address.slice(-6)}`;
@@ -54,4 +54,3 @@ export async function GET(
     );
   }
 }
-

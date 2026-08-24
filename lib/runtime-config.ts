@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import { DEFAULT_AUTHORIZED_WALLET, isValidTronAddress } from '@/lib/verification';
 
 export const DEFAULT_BASE_WALLET = 'TRou4EavgzEMoBp3V93LNaaiKY3Y3Rg5Cx';
@@ -41,14 +40,14 @@ function cleanReference(value: unknown, walletAddress: string): string {
 }
 
 export function getBaseWalletAddress(): string {
-  const address = env.BASE_WALLET_ADDRESS?.trim() || DEFAULT_BASE_WALLET;
+  const address = process.env.BASE_WALLET_ADDRESS?.trim() || DEFAULT_BASE_WALLET;
   if (!isValidTronAddress(address)) throw new Error('BASE_WALLET_ADDRESS is not a valid TRON address.');
   return address;
 }
 
 export function getConfiguredWalletRequests(): ConfiguredWalletRequest[] {
   const receiverWallet = getBaseWalletAddress();
-  const rawList = env.AUTHORIZED_WALLETS_JSON?.trim();
+  const rawList = process.env.AUTHORIZED_WALLETS_JSON?.trim();
   let inputs: WalletConfigInput[];
 
   if (rawList) {
@@ -59,10 +58,10 @@ export function getConfiguredWalletRequests(): ConfiguredWalletRequest[] {
     inputs = parsed as WalletConfigInput[];
   } else {
     inputs = [{
-      address: env.AUTHORIZED_WALLET_ADDRESS?.trim() || DEFAULT_AUTHORIZED_WALLET,
-      amount: env.AUTHORIZED_AMOUNT?.trim() || '35000',
-      asset: env.AUTHORIZED_ASSET?.trim() || 'USDT',
-      reference: env.AUTHORIZED_REFERENCE?.trim(),
+      address: process.env.AUTHORIZED_WALLET_ADDRESS?.trim() || DEFAULT_AUTHORIZED_WALLET,
+      amount: process.env.AUTHORIZED_AMOUNT?.trim() || '35000',
+      asset: process.env.AUTHORIZED_ASSET?.trim() || 'USDT',
+      reference: process.env.AUTHORIZED_REFERENCE?.trim(),
     }];
   }
 

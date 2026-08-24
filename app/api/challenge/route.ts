@@ -7,7 +7,7 @@ import {
 } from '@/db/repository';
 import { buildChallenge, CHALLENGE_TTL_MS, isValidTronAddress, newNonce } from '@/lib/verification';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 type ChallengeRequest = { walletAddress?: unknown };
 

@@ -1,5 +1,3 @@
-import { env } from 'cloudflare:workers';
-
 export type AdminAuthorization = 'authorized' | 'unauthorized' | 'not_configured';
 
 async function digest(value: string) {
@@ -16,7 +14,7 @@ async function safeEqual(left: string, right: string) {
 }
 
 export async function authorizeAdmin(request: Request): Promise<AdminAuthorization> {
-  const configured = env.ADMIN_ACCESS_TOKEN?.trim() || '';
+  const configured = process.env.ADMIN_ACCESS_TOKEN?.trim() || '';
   if (configured.length < 24) return 'not_configured';
 
   const header = request.headers.get('Authorization') || '';
@@ -25,4 +23,3 @@ export async function authorizeAdmin(request: Request): Promise<AdminAuthorizati
 
   return (await safeEqual(supplied, configured)) ? 'authorized' : 'unauthorized';
 }
-

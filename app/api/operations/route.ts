@@ -2,7 +2,7 @@ import { authorizeAdmin } from '@/lib/admin-auth';
 import { listAuthorizationStatuses } from '@/db/repository';
 import { getBaseWalletBalance } from '@/lib/tron-api';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   const authorization = await authorizeAdmin(request);
@@ -58,4 +58,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

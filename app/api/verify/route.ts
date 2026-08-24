@@ -11,7 +11,7 @@ import {
   recoverSigner,
 } from '@/lib/verification';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 type VerifyRequest = {
   challengeId?: unknown;

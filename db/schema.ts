@@ -87,3 +87,19 @@ export const authorizationRecords = sqliteTable(
     index('idx_authorization_records_created').on(table.createdAt),
   ],
 );
+
+export const authorizationCorrections = sqliteTable(
+  'authorization_corrections',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    publicId: text('public_id').notNull(),
+    walletAddress: text('wallet_address').notNull(),
+    requestReference: text('request_reference').notNull(),
+    fieldName: text('field_name').notNull(),
+    previousValue: text('previous_value').notNull(),
+    correctedValue: text('corrected_value').notNull(),
+    reason: text('reason').notNull(),
+    correctedAt: integer('corrected_at').notNull(),
+  },
+  (table) => [index('idx_authorization_corrections_public_id').on(table.publicId, table.correctedAt)],
+);

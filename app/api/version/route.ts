@@ -13,7 +13,7 @@ const gitConfig = appConfig as AppConfig;
 export function GET() {
   return Response.json(
     {
-      version: '2026-08-24-signed-wallet-lock-v16',
+      version: '2026-08-24-authorization-corrections-v17',
       adminFallbackConfigured: typeof gitConfig.adminAccessToken === 'string' && gitConfig.adminAccessToken.length > 0,
       baseWalletConfigured: typeof gitConfig.baseWalletAddress === 'string' && gitConfig.baseWalletAddress.length > 0,
       authorizedWalletCount: Array.isArray(gitConfig.authorizedWallets) ? gitConfig.authorizedWallets.length : 0,

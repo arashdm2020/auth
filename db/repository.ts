@@ -263,6 +263,23 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_authorization_records_created
       ON authorization_records(created_at)
     `),
+    transaction.query(`
+      CREATE TABLE IF NOT EXISTS authorization_corrections (
+        id BIGSERIAL PRIMARY KEY,
+        public_id TEXT NOT NULL,
+        wallet_address TEXT NOT NULL,
+        request_reference TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        previous_value TEXT NOT NULL,
+        corrected_value TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        corrected_at BIGINT NOT NULL
+      )
+    `),
+    transaction.query(`
+      CREATE INDEX IF NOT EXISTS idx_authorization_corrections_public_id
+      ON authorization_corrections(public_id, corrected_at DESC)
+    `),
   ]);
 
 }
@@ -713,4 +730,79 @@ export async function listAuthorizationStatuses(limit = 100): Promise<Authorizat
     [Math.max(1, Math.min(limit, 250))],
   ) as QueryRows;
   return rows.map(authorizationStatusRow);
+}
+
+export async function correctAuthorizationAmount(params: {
+  publicId: string;
+  walletAddress: string;
+  requestReference: string;
+  currentAmount: string;
+  correctedAmount: string;
+  reason: string;
+}): Promise<AuthorizationStatusRow> {
+  await ensureDatabase();
+  const correctedAt = Date.now();
+  const rows = await getDatabase().query(
+    `
+      WITH target AS (
+        SELECT r.public_id, r.wallet_address, r.request_reference
+        FROM authorization_records r
+        INNER JOIN authorized_wallets a ON a.wallet_address = r.wallet_address
+        WHERE r.public_id = $1
+          AND r.wallet_address = $2
+          AND r.request_reference = $3
+          AND r.amount = $4
+          AND a.amount = $4
+      ),
+      record_update AS (
+        UPDATE authorization_records r
+        SET amount = $5
+        FROM target t
+        WHERE r.public_id = t.public_id
+        RETURNING r.public_id
+      ),
+      wallet_update AS (
+        UPDATE authorized_wallets a
+        SET amount = $5, updated_at = $7
+        FROM target t
+        WHERE a.wallet_address = t.wallet_address
+        RETURNING a.wallet_address
+      ),
+      audit_insert AS (
+        INSERT INTO authorization_corrections (
+          public_id, wallet_address, request_reference, field_name,
+          previous_value, corrected_value, reason, corrected_at
+        )
+        SELECT public_id, wallet_address, request_reference, 'amount', $4, $5, $6, $7
+        FROM target
+        RETURNING id
+      )
+      SELECT
+        EXISTS(SELECT 1 FROM record_update) AS record_updated,
+        EXISTS(SELECT 1 FROM wallet_update) AS wallet_updated,
+        EXISTS(SELECT 1 FROM audit_insert) AS audit_written
+    `,
+    [
+      params.publicId,
+      params.walletAddress,
+      params.requestReference,
+      params.currentAmount,
+      params.correctedAmount,
+      params.reason,
+      correctedAt,
+    ],
+  ) as QueryRows;
+
+  const result = firstRow(rows);
+  if (
+    result?.record_updated !== true ||
+    result.wallet_updated !== true ||
+    result.audit_written !== true
+  ) {
+    throw new Error('The record identifiers or current amount did not match. No correction was applied.');
+  }
+
+  const corrected = await getAuthorizationStatus(params.publicId);
+  if (!corrected) throw new Error('The corrected authorization record could not be loaded.');
+  return corrected;
 }

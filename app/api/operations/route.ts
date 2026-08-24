@@ -9,13 +9,13 @@ export async function GET(request: Request) {
   if (authorization === 'not_configured') {
     return Response.json(
       { error: 'Admin access was denied.' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+      { status: 401, headers: { 'Cache-Control': 'no-store', 'X-App-Version': '2026-08-24-admin-db-config-v2' } },
     );
   }
   if (authorization !== 'authorized') {
     return Response.json(
       { error: 'Admin access was denied.' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+      { status: 401, headers: { 'Cache-Control': 'no-store', 'X-App-Version': '2026-08-24-admin-db-config-v2' } },
     );
   }
 
@@ -48,13 +48,13 @@ export async function GET(request: Request) {
           updatedAt: record.updated_at,
         })),
       },
-      { headers: { 'Cache-Control': 'no-store' } },
+      { headers: { 'Cache-Control': 'no-store', 'X-App-Version': '2026-08-24-admin-db-config-v2' } },
     );
   } catch (error) {
     console.error('Operations error', error);
     return Response.json(
       { error: 'Operations data is temporarily unavailable.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      { status: 500, headers: { 'Cache-Control': 'no-store', 'X-App-Version': '2026-08-24-admin-db-config-v2' } },
     );
   }
 }
